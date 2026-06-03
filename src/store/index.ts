@@ -519,13 +519,14 @@ export const useShowStore = create<ShowStore>((set, get) => ({
   joinSession: async (ip, port, pin, deviceName, deviceType) => {
     set(s => ({ session: { ...s.session, connecting: true, connectError: '' } }));
     try {
-      await invokeTauri('join_session', { hostIp: ip, port, pin, deviceName, deviceType });
+      const sessionName = await invokeTauri<string>('join_session', { hostIp: ip, port, pin, deviceName, deviceType });
       set(s => ({
         session: {
           ...s.session,
           connecting: false,
           mode: 'joined',
           hostIp: ip,
+          sessionName: sessionName ?? 'Session',
         },
       }));
       get().addToast({ title: 'Connected', message: 'Syncing show state…', type: 'success' });
@@ -543,20 +544,22 @@ export const useShowStore = create<ShowStore>((set, get) => ({
 
   applyRemoteShowState: (showJson, syncId) => {
     try {
+      if (!showJson) return;
       const show: Show = JSON.parse(showJson);
+      if (!show?.id) return;
       // Ignore our own echo
-      const { session, currentShowId } = get();
+      const { session } = get();
       if (syncId && syncId === session.lastSyncId) return;
-      // Merge: only update the show that matches, or set current show
-      const targetId = show.id ?? currentShowId;
-      if (!targetId) return;
+      // Merge: update existing show or add it, then switch to timer view
+      const targetId = show.id;
       set(s => {
         const exists = s.shows.find(sh => sh.id === targetId);
         return {
           shows: exists
-            ? s.shows.map(sh => sh.id === targetId ? { ...show, id: targetId } : sh)
+            ? s.shows.map(sh => sh.id === targetId ? show : sh)
             : [show, ...s.shows],
           currentShowId: targetId,
+          view: 'timer' as const,
         };
       });
     } catch {

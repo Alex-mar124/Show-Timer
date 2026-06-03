@@ -115,7 +115,7 @@ pub async fn start_hosting(
     app: AppHandle,
     session_name: String,
     pin: String,
-    device_name: String,
+    _device_name: String,
 ) -> Result<String, String> {
     let local_ip = get_ip_inner().unwrap_or_else(|| "0.0.0.0".to_string());
 
@@ -339,7 +339,10 @@ async fn handle_peer(
                             st.current_show_json = show_json.to_string();
                         }
                         // Tell host's React frontend to apply this state
-                        let _ = app.emit("session:state_received", show_json);
+                        let _ = app.emit("session:state_received", serde_json::json!({
+                            "show_json": show_json,
+                            "sync_id": val["sync_id"].as_str().unwrap_or("")
+                        }));
                         // Relay to all other peers
                         let relay = serde_json::json!({
                             "type": "state",
@@ -424,7 +427,7 @@ pub async fn join_session(
     pin: String,
     device_name: String,
     device_type: String,
-) -> Result<(), String> {
+) -> Result<String, String> {
     {
         let st = sess().lock().await;
         if st.mode != "none" {
@@ -470,6 +473,7 @@ pub async fn join_session(
     }
 
     let session_name = resp["session_name"].as_str().unwrap_or("").to_string();
+    let session_name_ret = session_name.clone();
     let peer_id = resp["peer_id"].as_str().unwrap_or("").to_string();
     let local_ip = get_ip_inner().unwrap_or_default();
 
@@ -535,7 +539,7 @@ pub async fn join_session(
         let _ = app_clone.emit("session:disconnected", ());
     });
 
-    Ok(())
+    Ok(session_name_ret)
 }
 
 #[tauri::command]
