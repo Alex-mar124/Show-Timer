@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { X, Clock, RotateCcw } from 'lucide-react';
+import { X, Clock, RotateCcw, ChevronUp, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { format, isValid } from 'date-fns';
+import { format } from 'date-fns';
 import { useShowStore } from '../store';
 import type { Segment } from '../types';
-import { formatTime } from '../utils/time';
 
 interface Props {
   showId: string;
@@ -13,27 +12,74 @@ interface Props {
   onClose: () => void;
 }
 
-export default function TimeEditModal({ showId, segment, field, onClose }: Props) {
-  const { settings, setSegmentTime, startSegment, stopSegment } = useShowStore();
-  const tf = settings.timeFormat;
-  const current = segment[field] ? new Date(segment[field]!) : null;
-  const [timeStr, setTimeStr] = useState(
-    current ? format(current, 'HH:mm:ss') : format(new Date(), 'HH:mm:ss')
+// ── Single HH / MM / SS spinner unit ─────────────────────────────────────────
+function TimeUnit({
+  value, max, onChange,
+}: { value: number; max: number; onChange: (n: number) => void }) {
+  function inc() { onChange((value + 1) % (max + 1)); }
+  function dec() { onChange((value - 1 + max + 1) % (max + 1)); }
+
+  function handleKey(e: React.KeyboardEvent) {
+    if (e.key === 'ArrowUp') { e.preventDefault(); inc(); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); dec(); }
+  }
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const n = parseInt(e.target.value, 10);
+    if (!isNaN(n) && n >= 0 && n <= max) onChange(n);
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <button
+        type="button"
+        onClick={inc}
+        className="w-10 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+      >
+        <ChevronUp className="w-4 h-4" />
+      </button>
+      <input
+        type="number"
+        min={0}
+        max={max}
+        value={value}
+        onChange={handleChange}
+        onKeyDown={handleKey}
+        className="w-14 h-14 text-center font-mono text-3xl font-light bg-show-surface border border-show-border rounded-xl text-slate-100 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all
+          [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      />
+      <button
+        type="button"
+        onClick={dec}
+        className="w-10 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+      >
+        <ChevronDown className="w-4 h-4" />
+      </button>
+    </div>
   );
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+export default function TimeEditModal({ showId, segment, field, onClose }: Props) {
+  const { setSegmentTime } = useShowStore();
+  const current = segment[field] ? new Date(segment[field]!) : new Date();
+
+  const [hours,   setHours]   = useState(current.getHours());
+  const [minutes, setMinutes] = useState(current.getMinutes());
+  const [seconds, setSeconds] = useState(current.getSeconds());
 
   const label = field === 'actualStart' ? 'Start Time' : 'End Time';
 
   function useNow() {
-    setTimeStr(format(new Date(), 'HH:mm:ss'));
+    const now = new Date();
+    setHours(now.getHours());
+    setMinutes(now.getMinutes());
+    setSeconds(now.getSeconds());
   }
 
   function handleSave() {
-    if (!timeStr) return;
-    const parts = timeStr.split(':').map(Number);
-    const [h, m, s] = parts;
-    if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) return;
     const d = new Date();
-    d.setHours(h, m, isNaN(s) ? 0 : s, 0);
+    d.setHours(hours, minutes, seconds, 0);
     setSegmentTime(showId, segment.id, field, d);
     onClose();
   }
@@ -42,6 +88,8 @@ export default function TimeEditModal({ showId, segment, field, onClose }: Props
     setSegmentTime(showId, segment.id, field, null);
     onClose();
   }
+
+  const hasCurrent = !!segment[field];
 
   return (
     <AnimatePresence>
@@ -61,31 +109,32 @@ export default function TimeEditModal({ showId, segment, field, onClose }: Props
           transition={{ type: 'spring', damping: 28, stiffness: 320 }}
         >
           <div className="rounded-2xl border border-show-border bg-show-card shadow-[0_24px_80px_rgba(0,0,0,0.6)]">
+            {/* Header */}
             <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-show-border">
               <div className="flex items-center gap-2.5">
                 <Clock className="w-4 h-4 text-amber-400" />
                 <h3 className="font-semibold text-slate-100">Edit {label}</h3>
               </div>
               <p className="text-xs text-slate-500">{segment.label}</p>
-              <button onClick={onClose} className="w-7 h-7 rounded-lg hover:bg-show-hover flex items-center justify-center text-slate-500 hover:text-slate-300 transition-colors">
+              <button
+                onClick={onClose}
+                className="w-7 h-7 rounded-lg hover:bg-show-hover flex items-center justify-center text-slate-500 hover:text-slate-300 transition-colors"
+              >
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="block text-xs text-slate-500 mb-1.5">
-                  Time — can be in the past to backdate
-                </label>
-                <input
-                  type="time"
-                  step="1"
-                  value={timeStr}
-                  onChange={e => setTimeStr(e.target.value)}
-                  className="w-full font-mono text-2xl bg-show-surface border border-show-border rounded-lg px-4 py-3 text-slate-100 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 text-center tabular [color-scheme:dark]"
-                />
+            <div className="p-5 space-y-5">
+              {/* Spinner */}
+              <div className="flex items-center justify-center gap-2 py-1">
+                <TimeUnit value={hours}   max={23} onChange={setHours} />
+                <span className="text-3xl font-light text-amber-500/60 pb-0.5 select-none">:</span>
+                <TimeUnit value={minutes} max={59} onChange={setMinutes} />
+                <span className="text-3xl font-light text-amber-500/60 pb-0.5 select-none">:</span>
+                <TimeUnit value={seconds} max={59} onChange={setSeconds} />
               </div>
 
+              {/* Use Now */}
               <button
                 onClick={useNow}
                 className="w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-show-border hover:bg-show-hover text-slate-400 hover:text-slate-200 text-sm transition-colors"
@@ -94,8 +143,9 @@ export default function TimeEditModal({ showId, segment, field, onClose }: Props
                 Use Current Time
               </button>
 
-              <div className="flex gap-2 pt-1">
-                {current && (
+              {/* Actions */}
+              <div className="flex gap-2">
+                {hasCurrent && (
                   <button
                     onClick={handleClear}
                     className="flex-1 py-2.5 rounded-lg border border-red-500/20 text-red-400 hover:bg-red-500/10 text-sm font-medium transition-colors"
