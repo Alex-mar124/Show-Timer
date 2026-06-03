@@ -41,9 +41,10 @@ function SpinUnit({
         value={String(value).padStart(2, '0')}
         onChange={handleChange}
         onKeyDown={handleKey}
-        className="w-10 h-9 text-center font-mono text-lg bg-show-surface border border-show-border rounded-lg text-slate-100
+        className="w-10 h-9 text-center font-mono text-lg bg-show-surface border border-show-border rounded-lg text-amber-400
           focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all
-          [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
+          selection:bg-amber-500/30 selection:text-amber-200"
       />
       <button type="button" onClick={dec}
         className="w-8 h-5 flex items-center justify-center rounded text-slate-500 hover:text-amber-400 hover:bg-amber-500/10 transition-colors">
@@ -217,7 +218,7 @@ export default function ShowSetupModal() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1.5">
-                      Show Start <span className="normal-case text-slate-600">(pre-show alerts)</span>
+                      Show Start
                     </label>
                     <CompactTimePicker value={showStartTime} onChange={setShowStartTime} />
                   </div>

@@ -45,8 +45,9 @@ function TimeUnit({
         value={value}
         onChange={handleChange}
         onKeyDown={handleKey}
-        className="w-14 h-14 text-center font-mono text-3xl font-light bg-show-surface border border-show-border rounded-xl text-slate-100 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all
-          [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        className="w-14 h-14 text-center font-mono text-3xl font-light bg-show-surface border border-show-border rounded-xl text-amber-400 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all
+          [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
+          selection:bg-amber-500/30 selection:text-amber-200"
       />
       <button
         type="button"
