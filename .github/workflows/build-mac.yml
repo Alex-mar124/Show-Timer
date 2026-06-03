@@ -37,26 +37,10 @@ jobs:
       - name: Install npm dependencies
         run: npm install
 
-      # ── 5. Icons ───────────────────────────────────────────────────────────
+      # ── 5. Icons — generate all sizes from the committed SVG ──────────────
       - name: Generate app icons
         run: |
-          python3 - <<'EOF'
-          import struct, zlib
-
-          def png(w, h, r, g, b):
-              def chunk(name, data):
-                  name = name.encode()
-                  crc = zlib.crc32(name + data) & 0xFFFFFFFF
-                  return struct.pack('>I', len(data)) + name + data + struct.pack('>I', crc)
-              raw = b''.join(b'\x00' + bytes([r, g, b] * w) for _ in range(h))
-              ihdr = struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)
-              return b'\x89PNG\r\n\x1a\n' + chunk('IHDR', ihdr) + chunk('IDAT', zlib.compress(raw)) + chunk('IEND', b'')
-
-          with open('app-icon.png', 'wb') as f:
-              f.write(png(512, 512, 245, 158, 11))   # #F59E0B amber
-          print('Created 512×512 amber app-icon.png')
-          EOF
-          npx @tauri-apps/cli icon app-icon.png
+          npx @tauri-apps/cli icon src-tauri/app-icon.svg
           echo "Icons generated:"
           ls src-tauri/icons/
 

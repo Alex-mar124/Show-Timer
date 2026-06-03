@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { X, Clock, RotateCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, isValid } from 'date-fns';
@@ -20,27 +20,20 @@ export default function TimeEditModal({ showId, segment, field, onClose }: Props
   const [timeStr, setTimeStr] = useState(
     current ? format(current, 'HH:mm:ss') : format(new Date(), 'HH:mm:ss')
   );
-  const [error, setError] = useState('');
 
   const label = field === 'actualStart' ? 'Start Time' : 'End Time';
 
   function useNow() {
     setTimeStr(format(new Date(), 'HH:mm:ss'));
-    setError('');
   }
 
   function handleSave() {
-    const [h, m, s] = timeStr.split(':').map(Number);
-    if (
-      isNaN(h) || isNaN(m) ||
-      h < 0 || h > 23 || m < 0 || m > 59 ||
-      (s !== undefined && (s < 0 || s > 59))
-    ) {
-      setError('Please enter a valid time (HH:MM or HH:MM:SS)');
-      return;
-    }
+    if (!timeStr) return;
+    const parts = timeStr.split(':').map(Number);
+    const [h, m, s] = parts;
+    if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) return;
     const d = new Date();
-    d.setHours(h, m, s ?? 0, 0);
+    d.setHours(h, m, isNaN(s) ? 0 : s, 0);
     setSegmentTime(showId, segment.id, field, d);
     onClose();
   }
@@ -82,16 +75,15 @@ export default function TimeEditModal({ showId, segment, field, onClose }: Props
             <div className="p-5 space-y-4">
               <div>
                 <label className="block text-xs text-slate-500 mb-1.5">
-                  Time (24h format) — can be in the past to backdate
+                  Time — can be in the past to backdate
                 </label>
                 <input
-                  type="text"
+                  type="time"
+                  step="1"
                   value={timeStr}
-                  onChange={e => { setTimeStr(e.target.value); setError(''); }}
-                  placeholder="HH:MM:SS"
-                  className="w-full font-mono text-2xl bg-show-surface border border-show-border rounded-lg px-4 py-3 text-slate-100 placeholder-slate-700 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 text-center tracking-widest tabular"
+                  onChange={e => setTimeStr(e.target.value)}
+                  className="w-full font-mono text-2xl bg-show-surface border border-show-border rounded-lg px-4 py-3 text-slate-100 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 text-center tabular [color-scheme:dark]"
                 />
-                {error && <p className="text-red-400 text-xs mt-1">{error}</p>}
               </div>
 
               <button
