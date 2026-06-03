@@ -38,8 +38,6 @@ jobs:
         run: npm install
 
       # ── 5. Icons ───────────────────────────────────────────────────────────
-      # Generate a 512×512 amber source PNG, then let tauri icon produce
-      # all required sizes (.icns for macOS, .ico for Windows, PNGs).
       - name: Generate app icons
         run: |
           python3 - <<'EOF'
@@ -62,29 +60,28 @@ jobs:
           echo "Icons generated:"
           ls src-tauri/icons/
 
-      # ── 6. Build ───────────────────────────────────────────────────────────
-      - name: Build macOS app (unsigned)
-        run: npx tauri build --target aarch64-apple-darwin
+      # ── 6. Build — .app bundle only (skip DMG, avoids bundle_dmg.sh CI issues)
+      - name: Build macOS app (ad-hoc signed, .app bundle)
+        run: npx tauri build --target aarch64-apple-darwin --bundles app
         env:
           # Ad-hoc signing ("-") — no Apple Developer account needed.
-          # Users bypass Gatekeeper by right-clicking → Open, or:
-          # xattr -cr /Applications/Show\ Timer.app
+          # To open: right-click → Open, or run:
+          #   xattr -cr /path/to/Show\ Timer.app
           APPLE_SIGNING_IDENTITY: '-'
 
-      # ── 7. Upload ──────────────────────────────────────────────────────────
-      - name: Upload DMG artifact
+      # ── 7. Zip the .app so GitHub can serve it as a single download ─────────
+      - name: Zip .app bundle
+        run: |
+          cd src-tauri/target/aarch64-apple-darwin/release/bundle/macos
+          zip -r "$GITHUB_WORKSPACE/ShowTimer-macOS-AppleSilicon.zip" "Show Timer.app"
+          echo "Zipped:"
+          ls -lh "$GITHUB_WORKSPACE/ShowTimer-macOS-AppleSilicon.zip"
+
+      # ── 8. Upload ──────────────────────────────────────────────────────────
+      - name: Upload .app zip artifact
         uses: actions/upload-artifact@v4
         with:
           name: ShowTimer-macOS-AppleSilicon
-          path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+          path: ShowTimer-macOS-AppleSilicon.zip
           retention-days: 90
           if-no-files-found: error
-
-      # Also upload raw .app bundle as a zip fallback
-      - name: Upload .app bundle (zip)
-        uses: actions/upload-artifact@v4
-        with:
-          name: ShowTimer-macOS-app-bundle
-          path: src-tauri/target/aarch64-apple-darwin/release/bundle/macos/
-          retention-days: 90
-          if-no-files-found: warn
