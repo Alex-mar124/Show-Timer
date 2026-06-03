@@ -66,10 +66,10 @@ jobs:
       - name: Build macOS app (unsigned)
         run: npx tauri build --target aarch64-apple-darwin
         env:
-          # No Apple Developer signing — users bypass Gatekeeper by
-          # right-clicking the app and choosing Open, or running:
+          # Ad-hoc signing ("-") — no Apple Developer account needed.
+          # Users bypass Gatekeeper by right-clicking → Open, or:
           # xattr -cr /Applications/Show\ Timer.app
-          APPLE_SIGNING_IDENTITY: ''
+          APPLE_SIGNING_IDENTITY: '-'
 
       # ── 7. Upload ──────────────────────────────────────────────────────────
       - name: Upload DMG artifact
