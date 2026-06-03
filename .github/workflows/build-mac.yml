@@ -1,0 +1,90 @@
+name: Build macOS App
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:          # also triggerable manually from GitHub Actions tab
+
+jobs:
+  build-macos-arm:
+    name: macOS Apple Silicon (M-series)
+    runs-on: macos-14          # Apple Silicon GitHub runner — native aarch64
+
+    steps:
+      # ── 1. Source ──────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Node.js ─────────────────────────────────────────────────────────
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # ── 3. Rust ────────────────────────────────────────────────────────────
+      - name: Install Rust stable (aarch64)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache Rust build artefacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      # ── 4. JS deps ─────────────────────────────────────────────────────────
+      - name: Install npm dependencies
+        run: npm install
+
+      # ── 5. Icons ───────────────────────────────────────────────────────────
+      # Generate a 512×512 amber source PNG, then let tauri icon produce
+      # all required sizes (.icns for macOS, .ico for Windows, PNGs).
+      - name: Generate app icons
+        run: |
+          python3 - <<'EOF'
+          import struct, zlib
+
+          def png(w, h, r, g, b):
+              def chunk(name, data):
+                  name = name.encode()
+                  crc = zlib.crc32(name + data) & 0xFFFFFFFF
+                  return struct.pack('>I', len(data)) + name + data + struct.pack('>I', crc)
+              raw = b''.join(b'\x00' + bytes([r, g, b] * w) for _ in range(h))
+              ihdr = struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)
+              return b'\x89PNG\r\n\x1a\n' + chunk('IHDR', ihdr) + chunk('IDAT', zlib.compress(raw)) + chunk('IEND', b'')
+
+          with open('app-icon.png', 'wb') as f:
+              f.write(png(512, 512, 245, 158, 11))   # #F59E0B amber
+          print('Created 512×512 amber app-icon.png')
+          EOF
+          npx @tauri-apps/cli icon app-icon.png
+          echo "Icons generated:"
+          ls src-tauri/icons/
+
+      # ── 6. Build ───────────────────────────────────────────────────────────
+      - name: Build macOS app (unsigned)
+        run: npx tauri build --target aarch64-apple-darwin
+        env:
+          # No Apple Developer signing — users bypass Gatekeeper by
+          # right-clicking the app and choosing Open, or running:
+          # xattr -cr /Applications/Show\ Timer.app
+          APPLE_SIGNING_IDENTITY: ''
+
+      # ── 7. Upload ──────────────────────────────────────────────────────────
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShowTimer-macOS-AppleSilicon
+          path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+          retention-days: 90
+          if-no-files-found: error
+
+      # Also upload raw .app bundle as a zip fallback
+      - name: Upload .app bundle (zip)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShowTimer-macOS-app-bundle
+          path: src-tauri/target/aarch64-apple-darwin/release/bundle/macos/
+          retention-days: 90
+          if-no-files-found: warn
