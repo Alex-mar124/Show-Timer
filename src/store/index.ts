@@ -133,7 +133,7 @@ interface ShowStore {
 async function loadTauriStore() {
   try {
     const { load } = await import('@tauri-apps/plugin-store');
-    const store = await load('show-timer.json', { autoSave: false });
+    const store = await load('show-timer.json', { autoSave: false, defaults: {} });
     const shows = (await store.get<Show[]>('shows')) ?? [];
     const currentShowId = (await store.get<string | null>('currentShowId')) ?? null;
     const settings = (await store.get<AppSettings>('settings')) ?? defaultSettings();
@@ -146,7 +146,7 @@ async function loadTauriStore() {
 async function saveTauriStore(state: { shows: Show[]; currentShowId: string | null; settings: AppSettings }) {
   try {
     const { load } = await import('@tauri-apps/plugin-store');
-    const store = await load('show-timer.json', { autoSave: false });
+    const store = await load('show-timer.json', { autoSave: false, defaults: {} });
     await store.set('shows', state.shows);
     await store.set('currentShowId', state.currentShowId);
     await store.set('settings', state.settings);

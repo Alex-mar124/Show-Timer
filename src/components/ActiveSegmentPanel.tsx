@@ -18,9 +18,10 @@ export default function ActiveSegmentPanel({ show, timeFormat, expectedStarts }:
   const { holdSegment, resumeSegment, advanceSegment, settings, addToast } = useShowStore();
 
   const segments = [...show.segments].sort((a, b) => a.order - b.order);
-  const activeSegment = segments.find(s => getSegmentStatus(s) === 'active') ?? null;
+  const found = segments.find(s => getSegmentStatus(s) === 'active');
 
-  if (!activeSegment) return null;
+  if (!found) return null;
+  const activeSegment: Segment = found;
 
   const activeIndex = segments.indexOf(activeSegment);
   const nextSegment: Segment | undefined = segments.find((s, i) => i > activeIndex && !s.actualStart);
