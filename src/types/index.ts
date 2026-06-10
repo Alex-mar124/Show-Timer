@@ -1,5 +1,31 @@
 export type TimeFormat = '12h' | '24h';
 export type SessionMode = 'none' | 'hosting' | 'joined';
+export type PerformanceType = 'matinee' | 'evening' | 'other';
+export type CopyStrategy = 'template' | 'last_show';
+
+export interface TemplateSegment {
+  id: string;
+  type: SegmentType;
+  label: string;
+  expectedDurationMinutes: number | null;
+  order: number;
+}
+
+export interface Run {
+  id: string;
+  name: string;
+  production: string;
+  venue: string;
+  performanceType: PerformanceType | null; // null = mixed / unspecified
+  copyStrategy: CopyStrategy;
+  defaultDoorsTime: string;
+  defaultShowStartTime: string;
+  templateSegments: TemplateSegment[];
+  showIds: string[];
+  notes: string;
+  createdAt: string;
+  completedAt: string | null;
+}
 
 export interface SessionPeer {
   id: string;
@@ -72,6 +98,10 @@ export interface Show {
   techNotes: string;
   createdAt: string;
   completedAt: string | null;
+  // Run membership (optional — standalone shows omit these)
+  runId?: string;
+  performanceNumber?: number;
+  performanceType?: PerformanceType;
 }
 
 export interface AppSettings {

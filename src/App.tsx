@@ -7,6 +7,7 @@ import TimerView from './components/TimerView';
 import HistoryView from './components/HistoryView';
 import SettingsView from './components/SettingsView';
 import ShowSetupModal from './components/ShowSetupModal';
+import RunSetupModal from './components/RunSetupModal';
 import ToastContainer from './components/ToastContainer';
 import SessionButton from './components/SessionButton';
 import SessionPanel from './components/SessionPanel';
@@ -25,7 +26,7 @@ export default function App() {
     initialize, initialized,
     view, setView,
     reportOpen, setReportOpen,
-    setNewShowModalOpen,
+    setNewShowModalOpen, setNewRunModalOpen,
     shows, currentShowId, settings,
     addToast,
     session,
@@ -184,10 +185,10 @@ export default function App() {
           {/* Sync */}
           <SessionButton />
 
-          {/* New show */}
+          {/* New show / new run */}
           <button
             onClick={() => setNewShowModalOpen(true)}
-            title="New show"
+            title="New standalone show"
             className="w-7 h-7 rounded-lg border border-show-border hover:border-amber-500/30 flex items-center justify-center text-slate-600 hover:text-amber-400 transition-all"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -240,6 +241,7 @@ export default function App() {
 
       {/* Overlays */}
       <ShowSetupModal />
+      <RunSetupModal />
       <AnimatePresence>{session.panelOpen && <SessionPanel />}</AnimatePresence>
       <ToastContainer />
     </div>

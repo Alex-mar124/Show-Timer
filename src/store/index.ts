@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Show, Segment, SegmentType, AppSettings, Toast, View, TimeFormat, SessionState, SessionPeer, DiscoveredSession } from '../types';
+import type { Show, Run, Segment, SegmentType, TemplateSegment, PerformanceType, CopyStrategy, AppSettings, Toast, View, TimeFormat, SessionState, SessionPeer, DiscoveredSession } from '../types';
 import { nowISO, todayISO } from '../utils/time';
 
 // ── Session helpers (called from store actions) ───────────────────────────────
@@ -71,10 +71,12 @@ interface ShowStore {
   // Data
   shows: Show[];
   currentShowId: string | null;
+  runs: Run[];
   // UI
   view: View;
   reportOpen: boolean;
   newShowModalOpen: boolean;
+  newRunModalOpen: boolean;
   toasts: Toast[];
   // Settings
   settings: AppSettings;
@@ -91,6 +93,21 @@ interface ShowStore {
   updateTechNotes: (id: string, techNotes: string) => void;
   completeShow: (id: string) => void;
   deleteShow: (id: string) => void;
+
+  // Run actions
+  createRun: (data: {
+    name: string; production: string; venue: string;
+    performanceType: PerformanceType | null; copyStrategy: CopyStrategy;
+    defaultDoorsTime: string; defaultShowStartTime: string;
+    templateSegments: TemplateSegment[];
+    firstShowDate: string; firstPerformanceType?: PerformanceType;
+  }) => void;
+  startNextPerformance: (runId: string, performanceType?: PerformanceType) => void;
+  completeRun: (runId: string) => void;
+  deleteRun: (runId: string) => void;
+  updateRunNotes: (runId: string, notes: string) => void;
+  syncTemplateFromShow: (runId: string, showId: string) => void;
+  setNewRunModalOpen: (open: boolean) => void;
 
   // Segment actions
   startSegment: (showId: string, segmentId: string, time?: Date) => void;
@@ -136,19 +153,21 @@ async function loadTauriStore() {
     const store = await load('show-timer.json', { autoSave: false, defaults: {} });
     const shows = (await store.get<Show[]>('shows')) ?? [];
     const currentShowId = (await store.get<string | null>('currentShowId')) ?? null;
+    const runs = (await store.get<Run[]>('runs')) ?? [];
     const settings = (await store.get<AppSettings>('settings')) ?? defaultSettings();
-    return { shows, currentShowId, settings };
+    return { shows, currentShowId, runs, settings };
   } catch {
-    return { shows: [], currentShowId: null, settings: defaultSettings() };
+    return { shows: [], currentShowId: null, runs: [], settings: defaultSettings() };
   }
 }
 
-async function saveTauriStore(state: { shows: Show[]; currentShowId: string | null; settings: AppSettings }) {
+async function saveTauriStore(state: { shows: Show[]; currentShowId: string | null; runs: Run[]; settings: AppSettings }) {
   try {
     const { load } = await import('@tauri-apps/plugin-store');
     const store = await load('show-timer.json', { autoSave: false, defaults: {} });
     await store.set('shows', state.shows);
     await store.set('currentShowId', state.currentShowId);
+    await store.set('runs', state.runs);
     await store.set('settings', state.settings);
     await store.save();
   } catch {
@@ -159,9 +178,11 @@ async function saveTauriStore(state: { shows: Show[]; currentShowId: string | nu
 export const useShowStore = create<ShowStore>((set, get) => ({
   shows: [],
   currentShowId: null,
+  runs: [],
   view: 'timer',
   reportOpen: true,
   newShowModalOpen: false,
+  newRunModalOpen: false,
   toasts: [],
   settings: defaultSettings(),
   initialized: false,
@@ -173,8 +194,8 @@ export const useShowStore = create<ShowStore>((set, get) => ({
   },
 
   saveToStore: async () => {
-    const { shows, currentShowId, settings, session, broadcastCurrentShow } = get();
-    await saveTauriStore({ shows, currentShowId, settings });
+    const { shows, currentShowId, runs, settings, session, broadcastCurrentShow } = get();
+    await saveTauriStore({ shows, currentShowId, runs, settings });
     // Broadcast show changes to any connected session peers
     if (session.mode !== 'none') {
       broadcastCurrentShow();
@@ -220,9 +241,15 @@ export const useShowStore = create<ShowStore>((set, get) => ({
   },
 
   deleteShow: (id) => {
+    const { shows } = get();
+    const show = shows.find(sh => sh.id === id);
     set(s => ({
       shows: s.shows.filter(sh => sh.id !== id),
       currentShowId: s.currentShowId === id ? (s.shows.find(sh => sh.id !== id)?.id ?? null) : s.currentShowId,
+      // Remove from parent run if applicable
+      runs: show?.runId
+        ? s.runs.map(r => r.id === show.runId ? { ...r, showIds: r.showIds.filter(sid => sid !== id) } : r)
+        : s.runs,
     }));
     get().saveToStore();
   },
@@ -448,6 +475,199 @@ export const useShowStore = create<ShowStore>((set, get) => ({
     }));
     get().saveToStore();
   },
+
+  // ── Run actions ───────────────────────────────────────────────────────────
+
+  createRun: (data) => {
+    const runId = uid();
+    const run: Run = {
+      id: runId,
+      name: data.name || data.production,
+      production: data.production,
+      venue: data.venue,
+      performanceType: data.performanceType,
+      copyStrategy: data.copyStrategy,
+      defaultDoorsTime: data.defaultDoorsTime,
+      defaultShowStartTime: data.defaultShowStartTime,
+      templateSegments: data.templateSegments,
+      showIds: [],
+      notes: '',
+      createdAt: nowISO(),
+      completedAt: null,
+    };
+
+    // Build first performance segments from template
+    const segments: Segment[] = data.templateSegments.map(t => ({
+      id: uid(),
+      type: t.type,
+      label: t.label,
+      expectedDurationMinutes: t.expectedDurationMinutes,
+      actualStart: null,
+      actualEnd: null,
+      holds: [],
+      notes: '',
+      order: t.order,
+    }));
+
+    // Compute planned times from run defaults + first show date
+    function toISO(dateStr: string, timeStr: string): string | null {
+      if (!timeStr) return null;
+      const [h, m] = timeStr.split(':').map(Number);
+      const d = new Date(dateStr);
+      d.setHours(h, m, 0, 0);
+      return d.toISOString();
+    }
+
+    const showId = uid();
+    const firstShow: Show = {
+      id: showId,
+      title: `Night 1`,
+      production: data.production,
+      date: data.firstShowDate,
+      plannedStartTime: toISO(data.firstShowDate, data.defaultShowStartTime),
+      doorsOpenTime: toISO(data.firstShowDate, data.defaultDoorsTime),
+      segments,
+      notes: '',
+      techNotes: '',
+      createdAt: nowISO(),
+      completedAt: null,
+      runId,
+      performanceNumber: 1,
+      performanceType: data.firstPerformanceType ?? data.performanceType ?? undefined,
+    };
+
+    run.showIds = [showId];
+
+    set(s => ({
+      runs: [run, ...s.runs],
+      shows: [firstShow, ...s.shows],
+      currentShowId: showId,
+      newRunModalOpen: false,
+      view: 'timer',
+    }));
+    get().saveToStore();
+  },
+
+  startNextPerformance: (runId, performanceType) => {
+    const { runs, shows } = get();
+    const run = runs.find(r => r.id === runId);
+    if (!run) return;
+
+    const lastShowId = run.showIds[run.showIds.length - 1];
+    const lastShow = shows.find(s => s.id === lastShowId);
+    if (!lastShow) return;
+
+    // Advance date by 1 day — use local year/month/date to avoid UTC timezone offset bugs
+    const [ly, lm, ld] = lastShow.date.split('-').map(Number);
+    const localNext = new Date(ly, lm - 1, ld + 1);
+    const nextDate = `${localNext.getFullYear()}-${String(localNext.getMonth() + 1).padStart(2, '0')}-${String(localNext.getDate()).padStart(2, '0')}`;
+
+    // Choose copy source
+    const sourceSegments: Array<{ type: SegmentType; label: string; expectedDurationMinutes: number | null; order: number }> =
+      run.copyStrategy === 'last_show'
+        ? [...lastShow.segments].sort((a, b) => a.order - b.order)
+        : [...run.templateSegments].sort((a, b) => a.order - b.order);
+
+    const segments: Segment[] = sourceSegments.map(s => ({
+      id: uid(),
+      type: s.type,
+      label: s.label,
+      expectedDurationMinutes: s.expectedDurationMinutes,
+      actualStart: null,
+      actualEnd: null,
+      holds: [],
+      notes: '',
+      order: s.order,
+    }));
+
+    function toISO(dateStr: string, timeStr: string): string | null {
+      if (!timeStr) return null;
+      const [h, m] = timeStr.split(':').map(Number);
+      const d = new Date(dateStr);
+      d.setHours(h, m, 0, 0);
+      return d.toISOString();
+    }
+
+    const perfNumber = run.showIds.length + 1;
+    const showId = uid();
+
+    // Carry forward tech notes from last show
+    const techNotes = lastShow.techNotes
+      ? `From ${lastShow.date}: ${lastShow.techNotes}\n---\n`
+      : '';
+
+    const newShow: Show = {
+      id: showId,
+      title: `Night ${perfNumber}`,
+      production: run.production,
+      date: nextDate,
+      plannedStartTime: toISO(nextDate, run.defaultShowStartTime),
+      doorsOpenTime: toISO(nextDate, run.defaultDoorsTime),
+      segments,
+      notes: '',
+      techNotes,
+      createdAt: nowISO(),
+      completedAt: null,
+      runId,
+      performanceNumber: perfNumber,
+      performanceType: performanceType ?? run.performanceType ?? undefined,
+    };
+
+    set(s => ({
+      shows: [newShow, ...s.shows],
+      runs: s.runs.map(r => r.id === runId ? { ...r, showIds: [...r.showIds, showId] } : r),
+      currentShowId: showId,
+      view: 'timer',
+    }));
+    get().saveToStore();
+  },
+
+  completeRun: (runId) => {
+    set(s => ({ runs: s.runs.map(r => r.id === runId ? { ...r, completedAt: nowISO() } : r) }));
+    get().saveToStore();
+  },
+
+  deleteRun: (runId) => {
+    const { runs, shows, currentShowId } = get();
+    const run = runs.find(r => r.id === runId);
+    if (!run) return;
+    // Detach shows from the run (make them standalone) but don't delete them
+    const newCurrentId = run.showIds.includes(currentShowId ?? '')
+      ? (shows.find(s => !run.showIds.includes(s.id))?.id ?? null)
+      : currentShowId;
+    set(s => ({
+      runs: s.runs.filter(r => r.id !== runId),
+      shows: s.shows.map(sh => sh.runId === runId ? { ...sh, runId: undefined, performanceNumber: undefined } : sh),
+      currentShowId: newCurrentId,
+    }));
+    get().saveToStore();
+  },
+
+  updateRunNotes: (runId, notes) => {
+    set(s => ({ runs: s.runs.map(r => r.id === runId ? { ...r, notes } : r) }));
+    get().saveToStore();
+  },
+
+  syncTemplateFromShow: (runId, showId) => {
+    const { shows } = get();
+    const show = shows.find(s => s.id === showId);
+    if (!show) return;
+    const templateSegments: TemplateSegment[] = [...show.segments]
+      .sort((a, b) => a.order - b.order)
+      .map(seg => ({
+        id: uid(),
+        type: seg.type,
+        label: seg.label,
+        expectedDurationMinutes: seg.expectedDurationMinutes,
+        order: seg.order,
+      }));
+    set(s => ({ runs: s.runs.map(r => r.id === runId ? { ...r, templateSegments } : r) }));
+    get().saveToStore();
+  },
+
+  setNewRunModalOpen: (newRunModalOpen) => set({ newRunModalOpen }),
+
+  // ── UI actions ────────────────────────────────────────────────────────────
 
   setView: (view) => set({ view }),
   setReportOpen: (reportOpen) => set({ reportOpen }),
