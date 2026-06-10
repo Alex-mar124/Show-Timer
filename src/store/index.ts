@@ -101,6 +101,7 @@ interface ShowStore {
     defaultDoorsTime: string; defaultShowStartTime: string;
     templateSegments: TemplateSegment[];
     firstShowDate: string; firstPerformanceType?: PerformanceType;
+    firstDayType?: DayType;
   }) => void;
   startNextPerformance: (runId: string, performanceType?: PerformanceType, dayType?: DayType) => void;
   completeRun: (runId: string) => void;
@@ -400,6 +401,10 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       doors: 'Doors Open', house_open: 'House Open', act: 'Act',
       interval: 'Interval', curtain_call: 'Curtain Call', show_end: 'Show End', custom: 'Custom',
       rehearsal: 'Rehearsal', plotting: 'Plotting Session',
+      bump_in: 'Bump In', bump_out: 'Bump Out',
+    };
+    const defaultDuration: Partial<Record<SegmentType, number>> = {
+      act: 55, interval: 20, rehearsal: 240, plotting: 300, doors: 30,
     };
     set(s => {
       const show = s.shows.find(sh => sh.id === showId);
@@ -407,7 +412,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       const order = afterOrder !== undefined ? afterOrder + 0.5 : show.segments.length;
       const seg: Segment = {
         id: uid(), type, label: labelMap[type],
-        expectedDurationMinutes: type === 'act' ? 55 : type === 'interval' ? 20 : type === 'rehearsal' ? 90 : type === 'plotting' ? 120 : null,
+        expectedDurationMinutes: defaultDuration[type] ?? null,
         actualStart: null, actualEnd: null, holds: [], notes: '', order,
       };
       const updated = [...show.segments, seg]
@@ -481,6 +486,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
 
   createRun: (data) => {
     const runId = uid();
+    const firstDayType: DayType = data.firstDayType ?? 'performance';
     const run: Run = {
       id: runId,
       name: data.name || data.production,
@@ -497,20 +503,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       completedAt: null,
     };
 
-    // Build first performance segments from template
-    const segments: Segment[] = data.templateSegments.map(t => ({
-      id: uid(),
-      type: t.type,
-      label: t.label,
-      expectedDurationMinutes: t.expectedDurationMinutes,
-      actualStart: null,
-      actualEnd: null,
-      holds: [],
-      notes: '',
-      order: t.order,
-    }));
-
-    // Compute planned times from run defaults + first show date
+    // Build first day's segments
     function toISO(dateStr: string, timeStr: string): string | null {
       if (!timeStr) return null;
       const [h, m] = timeStr.split(':').map(Number);
@@ -519,10 +512,34 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       return d.toISOString();
     }
 
+    const NON_PERF_SINGLE: Partial<Record<DayType, { type: SegmentType; label: string; exp: number | null }>> = {
+      rehearsal: { type: 'rehearsal', label: 'Rehearsal',        exp: 240 },
+      plotting:  { type: 'plotting',  label: 'Plotting Session', exp: 300 },
+      bump_in:   { type: 'bump_in',   label: 'Bump In',          exp: null },
+      bump_out:  { type: 'bump_out',  label: 'Bump Out',         exp: null },
+    };
+
+    let segments: Segment[];
+    if (firstDayType === 'performance') {
+      segments = data.templateSegments.map(t => ({
+        id: uid(), type: t.type, label: t.label,
+        expectedDurationMinutes: t.expectedDurationMinutes,
+        actualStart: null, actualEnd: null, holds: [], notes: '', order: t.order,
+      }));
+    } else {
+      const def = NON_PERF_SINGLE[firstDayType]!;
+      segments = [{ id: uid(), type: def.type, label: def.label, expectedDurationMinutes: def.exp, actualStart: null, actualEnd: null, holds: [], notes: '', order: 0 }];
+    }
+
+    const DAY_TITLES: Record<DayType, string> = {
+      performance: 'Night 1', rehearsal: 'Rehearsal', plotting: 'Plotting',
+      bump_in: 'Bump In', bump_out: 'Bump Out',
+    };
+
     const showId = uid();
     const firstShow: Show = {
       id: showId,
-      title: `Night 1`,
+      title: DAY_TITLES[firstDayType],
       production: data.production,
       date: data.firstShowDate,
       plannedStartTime: toISO(data.firstShowDate, data.defaultShowStartTime),
@@ -534,7 +551,8 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       completedAt: null,
       runId,
       performanceNumber: 1,
-      performanceType: data.firstPerformanceType ?? data.performanceType ?? undefined,
+      performanceType: firstDayType === 'performance' ? (data.firstPerformanceType ?? data.performanceType ?? undefined) : undefined,
+      dayType: firstDayType === 'performance' ? undefined : firstDayType,
     };
 
     run.showIds = [showId];
@@ -571,30 +589,21 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       return d.toISOString();
     }
 
-    // Built-in segment templates for non-performance days
-    const rehearsalTemplate: Array<{ type: SegmentType; label: string; expectedDurationMinutes: number | null; order: number }> = [
-      { type: 'custom',    label: 'Pre-Rehearsal',    expectedDurationMinutes: 30,  order: 0 },
-      { type: 'rehearsal', label: 'Act 1 Rehearsal',  expectedDurationMinutes: 90,  order: 1 },
-      { type: 'interval',  label: 'Break',            expectedDurationMinutes: 15,  order: 2 },
-      { type: 'rehearsal', label: 'Act 2 Rehearsal',  expectedDurationMinutes: 90,  order: 3 },
-      { type: 'show_end',  label: 'Notes',            expectedDurationMinutes: null, order: 4 },
-    ];
-    const plottingTemplate: Array<{ type: SegmentType; label: string; expectedDurationMinutes: number | null; order: number }> = [
-      { type: 'plotting',  label: 'Rig & Focus',      expectedDurationMinutes: 120, order: 0 },
-      { type: 'interval',  label: 'Break',            expectedDurationMinutes: 15,  order: 1 },
-      { type: 'plotting',  label: 'Plotting Session', expectedDurationMinutes: 180, order: 2 },
-      { type: 'interval',  label: 'Break',            expectedDurationMinutes: 15,  order: 3 },
-      { type: 'plotting',  label: 'Notes & Fixes',    expectedDurationMinutes: 60,  order: 4 },
-      { type: 'show_end',  label: 'End',              expectedDurationMinutes: null, order: 5 },
-    ];
+    // Single-segment templates for non-performance days
+    type SegDef = { type: SegmentType; label: string; expectedDurationMinutes: number | null; order: number };
+    const NON_PERF: Partial<Record<DayType, SegDef[]>> = {
+      rehearsal: [{ type: 'rehearsal', label: 'Rehearsal',        expectedDurationMinutes: 240,  order: 0 }],
+      plotting:  [{ type: 'plotting',  label: 'Plotting Session', expectedDurationMinutes: 300,  order: 0 }],
+      bump_in:   [{ type: 'bump_in',   label: 'Bump In',          expectedDurationMinutes: null, order: 0 }],
+      bump_out:  [{ type: 'bump_out',  label: 'Bump Out',         expectedDurationMinutes: null, order: 0 }],
+    };
 
     // Choose copy source based on dayType
     const sourceSegments =
-      dayType === 'rehearsal' ? rehearsalTemplate
-      : dayType === 'plotting' ? plottingTemplate
-      : run.copyStrategy === 'last_show'
+      NON_PERF[dayType]
+      ?? (run.copyStrategy === 'last_show'
         ? [...lastShow.segments].sort((a, b) => a.order - b.order)
-        : [...run.templateSegments].sort((a, b) => a.order - b.order);
+        : [...run.templateSegments].sort((a, b) => a.order - b.order));
 
     const segments: Segment[] = sourceSegments.map(s => ({
       id: uid(),
@@ -611,7 +620,11 @@ export const useShowStore = create<ShowStore>((set, get) => ({
     const perfNumber = run.showIds.length + 1;
     const showId = uid();
 
-    const dayLabel = dayType === 'rehearsal' ? 'Rehearsal' : dayType === 'plotting' ? 'Plotting' : `Night ${perfNumber}`;
+    const DAY_LABELS: Record<DayType, string> = {
+      performance: `Night ${perfNumber}`, rehearsal: 'Rehearsal',
+      plotting: 'Plotting', bump_in: 'Bump In', bump_out: 'Bump Out',
+    };
+    const dayLabel = DAY_LABELS[dayType];
 
     // Carry forward tech notes from last show
     const techNotes = lastShow.techNotes

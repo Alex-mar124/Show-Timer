@@ -66,9 +66,11 @@ export type SegmentType =
   | 'show_end'
   | 'custom'
   | 'rehearsal'
-  | 'plotting';
+  | 'plotting'
+  | 'bump_in'
+  | 'bump_out';
 
-export type DayType = 'performance' | 'rehearsal' | 'plotting';
+export type DayType = 'performance' | 'rehearsal' | 'plotting' | 'bump_in' | 'bump_out';
 
 export type SegmentStatus = 'pending' | 'active' | 'complete';
 

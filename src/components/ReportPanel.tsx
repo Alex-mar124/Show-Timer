@@ -55,11 +55,15 @@ function RunStatsTab({ run, shows, timeFormat }: { run: Run; shows: Show[]; time
     performance: 'text-amber-400',
     rehearsal:   'text-teal-400',
     plotting:    'text-indigo-400',
+    bump_in:     'text-orange-400',
+    bump_out:    'text-rose-400',
   };
   const DAY_LABELS: Record<string, string> = {
     performance: 'Perf',
     rehearsal:   'Reh',
     plotting:    'Plot',
+    bump_in:     'B.In',
+    bump_out:    'B.Out',
   };
 
   return (

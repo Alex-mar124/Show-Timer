@@ -27,6 +27,13 @@ const PERF_TYPE_LABEL: Record<PerformanceType, string> = {
   matinee: 'Matinee', evening: 'Evening', other: 'Other',
 };
 
+const DAY_TYPE_STYLE: Record<string, { label: string; cls: string }> = {
+  bump_in:   { label: 'Bump In',          cls: 'text-orange-300 bg-orange-500/10' },
+  rehearsal: { label: 'Rehearsal',        cls: 'text-teal-300 bg-teal-500/10' },
+  plotting:  { label: 'Plotting Session', cls: 'text-indigo-300 bg-indigo-500/10' },
+  bump_out:  { label: 'Bump Out',         cls: 'text-rose-300 bg-rose-500/10' },
+};
+
 export default function TimerView() {
   const {
     shows, runs, currentShowId, settings, reportOpen,
@@ -99,14 +106,18 @@ export default function TimerView() {
     .filter(s => s.expectedDurationMinutes)
     .reduce((acc, s) => acc + (s.expectedDurationMinutes ?? 0), 0);
 
-  const addTypes: Array<{ type: SegmentType; label: string }> = [
-    { type: 'act',           label: 'Act' },
-    { type: 'interval',      label: 'Interval' },
-    { type: 'rehearsal',     label: 'Rehearsal' },
-    { type: 'plotting',      label: 'Plotting Session' },
-    { type: 'curtain_call',  label: 'Curtain Call' },
-    { type: 'custom',        label: 'Custom' },
+  const addTypes: Array<{ type: SegmentType; label: string; group?: string }> = [
+    { type: 'act',           label: 'Act',              group: 'show' },
+    { type: 'interval',      label: 'Interval',         group: 'show' },
+    { type: 'curtain_call',  label: 'Curtain Call',     group: 'show' },
+    { type: 'custom',        label: 'Custom',           group: 'show' },
+    { type: 'bump_in',       label: 'Bump In',          group: 'other' },
+    { type: 'rehearsal',     label: 'Rehearsal',        group: 'other' },
+    { type: 'plotting',      label: 'Plotting Session', group: 'other' },
+    { type: 'bump_out',      label: 'Bump Out',         group: 'other' },
   ];
+
+  const isNonPerfDay = !!show?.dayType && show.dayType !== 'performance';
 
   return (
     <div className="flex flex-1 min-h-0">
@@ -121,12 +132,17 @@ export default function TimerView() {
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
                 {show.production}
               </p>
-              {currentRun && show.performanceNumber && (
+              {currentRun && show.performanceNumber && !isNonPerfDay && (
                 <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-full">
                   Night {show.performanceNumber}
                 </span>
               )}
-              {show.performanceType && (
+              {show.dayType && DAY_TYPE_STYLE[show.dayType] && (
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${DAY_TYPE_STYLE[show.dayType].cls}`}>
+                  {DAY_TYPE_STYLE[show.dayType].label}
+                </span>
+              )}
+              {show.performanceType && !isNonPerfDay && (
                 <span className="text-[10px] font-semibold text-purple-300 bg-purple-500/10 px-1.5 py-0.5 rounded-full">
                   {PERF_TYPE_LABEL[show.performanceType]}
                 </span>
@@ -174,64 +190,93 @@ export default function TimerView() {
           expectedStarts={expectedStarts}
         />
 
-        {/* Segment list — draggable */}
+        {/* Segment list */}
         <div className="flex-1 overflow-y-auto px-6 pb-4">
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={segments.map(s => s.id)}
-              strategy={verticalListSortingStrategy}
+          {isNonPerfDay ? (
+            /* Simplified single-block view for non-performance days */
+            <div className="rounded-xl border border-show-border overflow-hidden bg-show-card">
+              {segments.map(seg => (
+                <SegmentCard
+                  key={seg.id}
+                  showId={show.id}
+                  segment={seg}
+                  timeFormat={settings.timeFormat}
+                  expectedStartAt={expectedStarts.get(seg.id) ?? null}
+                />
+              ))}
+            </div>
+          ) : (
+            /* Full draggable cue sheet for performance days */
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
             >
-              {/* Cue-sheet container — individual rows have border-b */}
-              <div className="rounded-xl border border-show-border overflow-hidden bg-show-card">
-                {segments.map(seg => (
-                  <SegmentCard
-                    key={seg.id}
-                    showId={show.id}
-                    segment={seg}
-                    timeFormat={settings.timeFormat}
-                    expectedStartAt={expectedStarts.get(seg.id) ?? null}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-
-          {/* Add segment */}
-          <div className="mt-4 relative">
-            <button
-              onClick={() => setAddMenuOpen(!addMenuOpen)}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-show-border hover:border-amber-500/30 text-slate-600 hover:text-amber-400 text-xs font-medium transition-all"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add Segment
-              <ChevronDown className={`w-3 h-3 transition-transform ${addMenuOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            <AnimatePresence>
-              {addMenuOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
-                  className="absolute top-full left-0 mt-1.5 z-20 bg-show-card border border-show-border rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden"
-                >
-                  {addTypes.map(({ type, label }) => (
-                    <button
-                      key={type}
-                      onClick={() => { addSegment(show.id, type); setAddMenuOpen(false); }}
-                      className="flex w-full items-center px-4 py-2.5 text-sm text-slate-300 hover:bg-show-hover hover:text-slate-100 transition-colors"
-                    >
-                      {label}
-                    </button>
+              <SortableContext
+                items={segments.map(s => s.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="rounded-xl border border-show-border overflow-hidden bg-show-card">
+                  {segments.map(seg => (
+                    <SegmentCard
+                      key={seg.id}
+                      showId={show.id}
+                      segment={seg}
+                      timeFormat={settings.timeFormat}
+                      expectedStartAt={expectedStarts.get(seg.id) ?? null}
+                    />
                   ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                </div>
+              </SortableContext>
+            </DndContext>
+          )}
+
+          {/* Add segment — hidden for single-segment non-performance days */}
+          {!isNonPerfDay && (
+            <div className="mt-4 relative">
+              <button
+                onClick={() => setAddMenuOpen(!addMenuOpen)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-show-border hover:border-amber-500/30 text-slate-600 hover:text-amber-400 text-xs font-medium transition-all"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add Segment
+                <ChevronDown className={`w-3 h-3 transition-transform ${addMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              <AnimatePresence>
+                {addMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    className="absolute top-full left-0 mt-1.5 z-20 bg-show-card border border-show-border rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden min-w-[180px]"
+                  >
+                    <p className="px-3 pt-2.5 pb-1 text-[10px] text-slate-600 uppercase tracking-widest font-semibold">Show</p>
+                    {addTypes.filter(t => t.group === 'show').map(({ type, label }) => (
+                      <button
+                        key={type}
+                        onClick={() => { addSegment(show.id, type); setAddMenuOpen(false); }}
+                        className="flex w-full items-center px-4 py-2.5 text-sm text-slate-300 hover:bg-show-hover hover:text-slate-100 transition-colors"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                    <div className="border-t border-show-border/50 my-1" />
+                    <p className="px-3 pt-1.5 pb-1 text-[10px] text-slate-600 uppercase tracking-widest font-semibold">Production</p>
+                    {addTypes.filter(t => t.group === 'other').map(({ type, label }) => (
+                      <button
+                        key={type}
+                        onClick={() => { addSegment(show.id, type); setAddMenuOpen(false); }}
+                        className="flex w-full items-center px-4 py-2.5 text-sm text-slate-300 hover:bg-show-hover hover:text-slate-100 transition-colors"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
         </div>
 
         {/* Total bar */}
@@ -295,8 +340,10 @@ export default function TimerView() {
                     <div className="border-t border-show-border/50 my-1" />
 
                     {([
-                      { dayType: 'rehearsal' as DayType, label: 'Rehearsal Day', color: 'bg-teal-500/60' },
-                      { dayType: 'plotting'  as DayType, label: 'Plotting Session', color: 'bg-indigo-500/60' },
+                      { dayType: 'bump_in'   as DayType, label: 'Bump In',          color: 'bg-orange-500/60' },
+                      { dayType: 'rehearsal' as DayType, label: 'Rehearsal',         color: 'bg-teal-500/60' },
+                      { dayType: 'plotting'  as DayType, label: 'Plotting Session',  color: 'bg-indigo-500/60' },
+                      { dayType: 'bump_out'  as DayType, label: 'Bump Out',          color: 'bg-rose-500/60' },
                     ]).map(opt => (
                       <button key={opt.dayType} onClick={() => {
                         startNextPerformance(currentRun.id, undefined, opt.dayType);

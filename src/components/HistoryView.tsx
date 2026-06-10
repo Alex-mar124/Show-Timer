@@ -186,11 +186,14 @@ export default function HistoryView() {
                                     <span className="text-xs font-mono text-slate-500 w-6">#{si + 1}</span>
                                     {show.dayType && show.dayType !== 'performance' ? (
                                       <span className={`text-[10px] px-1 py-0.5 rounded font-semibold ${
-                                        show.dayType === 'rehearsal'
-                                          ? 'text-teal-300 bg-teal-500/15'
-                                          : 'text-indigo-300 bg-indigo-500/15'
+                                        show.dayType === 'rehearsal' ? 'text-teal-300 bg-teal-500/15' :
+                                        show.dayType === 'plotting'  ? 'text-indigo-300 bg-indigo-500/15' :
+                                        show.dayType === 'bump_in'   ? 'text-orange-300 bg-orange-500/15' :
+                                        'text-rose-300 bg-rose-500/15'
                                       }`}>
-                                        {show.dayType === 'rehearsal' ? 'Reh' : 'Plot'}
+                                        {show.dayType === 'rehearsal' ? 'Reh' :
+                                         show.dayType === 'plotting'  ? 'Plot' :
+                                         show.dayType === 'bump_in'   ? 'B.In' : 'B.Out'}
                                       </span>
                                     ) : show.performanceType ? (
                                       <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1 py-0.5 rounded">

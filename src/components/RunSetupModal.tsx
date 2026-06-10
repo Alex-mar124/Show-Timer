@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import AppLogo from './AppLogo';
 import { useShowStore } from '../store';
 import { todayISO } from '../utils/time';
-import type { SegmentType, TemplateSegment, PerformanceType, CopyStrategy } from '../types';
+import type { SegmentType, TemplateSegment, PerformanceType, CopyStrategy, DayType } from '../types';
 
 function uid() { return crypto.randomUUID(); }
 
@@ -13,7 +13,16 @@ const TYPE_LABELS: Record<SegmentType, string> = {
   interval: 'Interval', curtain_call: 'Curtain Call',
   show_end: 'Show End', custom: 'Custom',
   rehearsal: 'Rehearsal', plotting: 'Plotting Session',
+  bump_in: 'Bump In', bump_out: 'Bump Out',
 };
+
+const FIRST_DAY_OPTIONS: Array<{ value: DayType; label: string; desc: string }> = [
+  { value: 'performance', label: 'Performance',      desc: 'Jump straight to a live show' },
+  { value: 'bump_in',     label: 'Bump In',          desc: 'Load-in and rigging day' },
+  { value: 'rehearsal',   label: 'Rehearsal',        desc: 'Full company rehearsal' },
+  { value: 'plotting',    label: 'Plotting Session', desc: 'Lighting/sound focus & plot' },
+  { value: 'bump_out',    label: 'Bump Out',         desc: 'Strike and load-out' },
+];
 
 const DEFAULT_DURATIONS: Partial<Record<SegmentType, number>> = {
   doors: 30, act: 55, interval: 20, curtain_call: null as unknown as number,
@@ -102,6 +111,7 @@ export default function RunSetupModal() {
   const [name, setName] = useState('');
   const [venue, setVenue] = useState('');
   const [performanceType, setPerformanceType] = useState<PerformanceType | null>(null);
+  const [firstDayType, setFirstDayType] = useState<DayType>('performance');
   const [copyStrategy, setCopyStrategy] = useState<CopyStrategy>('template');
   const [doorsTime, setDoorsTime] = useState('');
   const [showStartTime, setShowStartTime] = useState('');
@@ -110,7 +120,7 @@ export default function RunSetupModal() {
 
   function reset() {
     setProduction(''); setName(''); setVenue('');
-    setPerformanceType(null); setCopyStrategy('template');
+    setPerformanceType(null); setFirstDayType('performance'); setCopyStrategy('template');
     setDoorsTime(''); setShowStartTime('');
     setFirstDate(todayISO());
     setTemplateSegs(defaultTemplateSegments());
@@ -127,6 +137,7 @@ export default function RunSetupModal() {
       production: production.trim(),
       venue: venue.trim(),
       performanceType,
+      firstDayType,
       copyStrategy,
       defaultDoorsTime: doorsTime,
       defaultShowStartTime: showStartTime,
@@ -242,25 +253,51 @@ export default function RunSetupModal() {
                   <div className="space-y-3">
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Schedule</p>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1.5">
-                          Performance Type
-                        </label>
-                        <select
-                          value={performanceType ?? ''}
-                          onChange={e => setPerformanceType((e.target.value || null) as PerformanceType | null)}
-                          className="w-full bg-show-surface border border-show-border rounded-lg px-3 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500/50 transition-all text-sm"
-                        >
-                          {perfTypeOptions.map(o => (
-                            <option key={String(o.value)} value={o.value ?? ''}>{o.label}</option>
-                          ))}
-                        </select>
+                    {/* First day type */}
+                    <div>
+                      <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1.5">
+                        Start the run on a…
+                      </label>
+                      <div className="grid grid-cols-5 gap-1.5">
+                        {FIRST_DAY_OPTIONS.map(opt => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setFirstDayType(opt.value)}
+                            title={opt.desc}
+                            className={`py-2 px-1 rounded-lg border text-center transition-all ${
+                              firstDayType === opt.value
+                                ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+                                : 'border-show-border text-slate-500 hover:border-slate-600 hover:text-slate-400'
+                            }`}
+                          >
+                            <p className="text-[10px] font-semibold leading-tight">{opt.label}</p>
+                          </button>
+                        ))}
                       </div>
+                    </div>
 
-                      <div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {firstDayType === 'performance' && (
+                        <div>
+                          <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1.5">
+                            Performance Type
+                          </label>
+                          <select
+                            value={performanceType ?? ''}
+                            onChange={e => setPerformanceType((e.target.value || null) as PerformanceType | null)}
+                            className="w-full bg-show-surface border border-show-border rounded-lg px-3 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500/50 transition-all text-sm"
+                          >
+                            {perfTypeOptions.map(o => (
+                              <option key={String(o.value)} value={o.value ?? ''}>{o.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      <div className={firstDayType === 'performance' ? '' : 'col-span-2'}>
                         <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1.5">
-                          First Performance Date <span className="text-red-500">*</span>
+                          First Day Date <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="date"
@@ -298,8 +335,8 @@ export default function RunSetupModal() {
                     </div>
                   </div>
 
-                  {/* Template Segments */}
-                  <div className="space-y-3">
+                  {/* Template Segments — only relevant when performances are included */}
+                  {firstDayType === 'performance' && <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Segment Template</p>
                       <span className="text-[10px] text-slate-700">Type · Label · Duration</span>
@@ -325,7 +362,7 @@ export default function RunSetupModal() {
                       <Plus className="w-3.5 h-3.5" />
                       Add segment
                     </button>
-                  </div>
+                  </div>}
 
                   {/* Copy Strategy */}
                   <div className="space-y-2">
@@ -361,7 +398,7 @@ export default function RunSetupModal() {
                     disabled={!production.trim()}
                     className="w-full py-3 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:bg-show-hover disabled:text-slate-600 text-show-base font-semibold text-sm transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/50"
                   >
-                    Create Run &amp; First Performance
+                    {firstDayType === 'performance' ? 'Create Run & First Performance' : `Create Run & Start ${FIRST_DAY_OPTIONS.find(o => o.value === firstDayType)?.label ?? 'Day'}`}
                   </button>
                 </div>
               </form>
