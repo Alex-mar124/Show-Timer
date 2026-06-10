@@ -227,14 +227,25 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
                 ) : null
               ) : (
                 <>
-                  <button
-                    onClick={() => setEditModal('actualStart')}
-                    className={`font-mono text-sm tabular transition-colors ${
-                      segment.actualStart ? 'text-slate-300 hover:text-amber-300' : 'text-slate-700 hover:text-slate-500'
-                    }`}
-                  >
-                    {segment.actualStart ? formatTime(segment.actualStart, timeFormat) : '--:--'}
-                  </button>
+                  {segment.actualStart ? (
+                    <button
+                      onClick={() => setEditModal('actualStart')}
+                      className="font-mono text-sm tabular text-slate-300 hover:text-amber-300 transition-colors"
+                    >
+                      {formatTime(segment.actualStart, timeFormat)}
+                    </button>
+                  ) : expectedStartAt ? (
+                    <span className="font-mono text-sm tabular text-slate-500">
+                      ~{formatTime(expectedStartAt, timeFormat)}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => setEditModal('actualStart')}
+                      className="font-mono text-sm tabular text-slate-700 hover:text-slate-500 transition-colors"
+                    >
+                      --:--
+                    </button>
+                  )}
 
                   {isActive && (
                     <>
@@ -274,12 +285,6 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
                   value={segment.expectedDurationMinutes}
                   onChange={v => updateSegmentExpected(showId, segment.id, v)}
                 />
-              )}
-
-              {status === 'pending' && !isShowEnd && expectedStartAt && !segment.actualStart && (
-                <span className="text-xs font-mono tabular font-medium text-slate-500 bg-show-surface border border-show-border px-2 py-0.5 rounded-md">
-                  Est. {formatTime(expectedStartAt, timeFormat)}
-                </span>
               )}
 
               {overUnderMs !== null && Math.abs(overUnderMs) > 5000 && (

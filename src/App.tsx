@@ -100,52 +100,59 @@ export default function App() {
   return (
     <div className="h-full bg-show-base flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="shrink-0 flex items-center px-5 h-14 border-b border-show-border bg-show-surface">
-        {/* Brand */}
-        <div className="flex items-center gap-2.5 w-44 shrink-0">
-          <AppLogo size={28} />
-          <span className="font-semibold text-sm text-slate-300 tracking-wide">SHOW TIMER</span>
+      <header className="shrink-0 flex items-center px-4 h-13 border-b border-show-border bg-show-surface" style={{ height: '52px' }}>
+
+        {/* Brand — logo + two-tone name */}
+        <div className="flex items-center gap-2 shrink-0 min-w-0" style={{ width: 148 }}>
+          <AppLogo size={30} className="shrink-0" />
+          <div className="flex flex-col leading-none">
+            <span className="font-mono text-[9px] tracking-[0.22em] text-slate-600 uppercase">Show</span>
+            <span className="font-mono text-[11px] tracking-[0.18em] text-amber-400 uppercase font-bold">Timer</span>
+          </div>
         </div>
 
-        {/* Center: show info */}
-        <div className="flex-1 flex items-center justify-center">
+        {/* Center: current show info */}
+        <div className="flex-1 flex items-center justify-center min-w-0 px-3">
           {currentShow ? (
             <button
               onClick={() => setView('timer')}
-              className="text-center hover:text-amber-300 transition-colors"
+              className="text-center group min-w-0 max-w-xs"
             >
-              <p className="text-sm font-semibold text-slate-200 leading-tight">
+              <p className="text-sm font-semibold text-slate-200 leading-tight truncate group-hover:text-amber-300 transition-colors">
                 {currentShow.production || currentShow.title}
               </p>
-              <p className="text-xs text-slate-600">
-                {currentShow.title !== currentShow.production && currentShow.title
-                  ? `${currentShow.title} · `
-                  : ''}
+              <p className="text-[11px] text-slate-600 truncate">
+                {currentShow.production && currentShow.title !== currentShow.production
+                  ? `${currentShow.title} · ` : ''}
                 {formatDateShort(currentShow.date)}
               </p>
             </button>
           ) : (
-            <p className="text-sm text-slate-700">No active show</p>
+            <button
+              onClick={() => setNewShowModalOpen(true)}
+              className="text-xs text-slate-700 hover:text-amber-400 transition-colors"
+            >
+              No active show — create one
+            </button>
           )}
         </div>
 
-        {/* Right: nav + actions */}
-        <div className="flex items-center gap-1 w-44 justify-end">
+        {/* Right: actions */}
+        <div className="flex items-center gap-1 shrink-0" style={{ width: 148, justifyContent: 'flex-end' }}>
+
           {/* Nav tabs */}
-          <div className="flex items-center bg-show-card rounded-lg border border-show-border p-0.5 mr-2">
+          <div className="flex items-center bg-show-card rounded-lg border border-show-border p-0.5 mr-1.5">
             {NAV_ITEMS.map(({ view: v, Icon, label }) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
                 title={label}
                 className={`relative w-8 h-7 rounded-md flex items-center justify-center transition-all ${
-                  view === v
-                    ? 'text-amber-400'
-                    : 'text-slate-600 hover:text-slate-400'
+                  view === v ? 'text-amber-400' : 'text-slate-600 hover:text-slate-400'
                 }`}
               >
                 {v === 'timer'
-                  ? <AppLogoMark size={14} />
+                  ? <AppLogoMark size={13} />
                   : <Icon className="w-3.5 h-3.5" />
                 }
                 {view === v && (
@@ -164,7 +171,7 @@ export default function App() {
             <button
               onClick={() => setReportOpen(!reportOpen)}
               title="Toggle report panel"
-              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all border ${
+              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all border ${
                 reportOpen
                   ? 'border-amber-500/30 bg-amber-500/10 text-amber-400'
                   : 'border-show-border text-slate-600 hover:text-slate-300'
@@ -174,18 +181,19 @@ export default function App() {
             </button>
           )}
 
-          {/* Sync / Session */}
+          {/* Sync */}
           <SessionButton />
 
           {/* New show */}
           <button
             onClick={() => setNewShowModalOpen(true)}
             title="New show"
-            className="w-8 h-8 rounded-lg border border-show-border hover:border-amber-500/30 flex items-center justify-center text-slate-600 hover:text-amber-400 transition-all"
+            className="w-7 h-7 rounded-lg border border-show-border hover:border-amber-500/30 flex items-center justify-center text-slate-600 hover:text-amber-400 transition-all"
           >
             <Plus className="w-3.5 h-3.5" />
           </button>
         </div>
+
       </header>
 
       {/* Content */}

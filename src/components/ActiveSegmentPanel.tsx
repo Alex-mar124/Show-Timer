@@ -4,7 +4,7 @@ import { useShowStore } from '../store';
 import { useClock } from '../hooks/useClock';
 import { getSegmentStatus, getElapsedMs } from '../types';
 import type { Show, Segment, TimeFormat } from '../types';
-import { formatTime, formatDuration, formatOverUnder } from '../utils/time';
+import { formatTime, formatDuration } from '../utils/time';
 import { getIntervalBackAtTime, scheduleIntervalNotification } from '../utils/notifications';
 
 interface Props {
@@ -13,72 +13,72 @@ interface Props {
   expectedStarts: Map<string, Date | null>;
 }
 
-// ── SVG arc that fills clockwise ──────────────────────────────────────────────
-const ARC_SIZE = 144;
-const ARC_CX   = 72;
-const ARC_CY   = 72;
-const ARC_R    = 54;
-const ARC_CIRC = 2 * Math.PI * ARC_R; // ≈ 339.3
+// ── Arc sizes ─────────────────────────────────────────────────────────────────
+const SZ   = 148;
+const CX   = 74;
+const CY   = 74;
+const R    = 56;
+const CIRC = 2 * Math.PI * R; // ≈ 351.9
 
 interface ArcProps {
-  progress: number;   // 0–1, clamped for arc fill; can be >1 to signal "over"
-  isOver: boolean;
-  color: string;      // tailwind stroke colour via inline style
-  label: string;      // time string shown inside
-  sublabel?: string;  // over/under or "remaining"
-  sublabelColor?: string;
+  progress:  number;   // 0–1
+  isOver:    boolean;
+  strokeColor: string;
+  elapsed:   string;
+  remaining: string | null;
+  remainingColor: string;
 }
 
-function ProgressArc({ progress, isOver, color, label, sublabel, sublabelColor }: ArcProps) {
-  const clamped = Math.min(progress, 1);
-  const dashOffset = ARC_CIRC * (1 - clamped);
+function Arc({ progress, isOver, strokeColor, elapsed, remaining, remainingColor }: ArcProps) {
+  // Always show at least a tiny cap so the arc is visible from the first second
+  const visible  = Math.max(progress, 0.015);
+  const offset   = CIRC * (1 - visible);
 
   return (
-    <div className="relative shrink-0" style={{ width: ARC_SIZE, height: ARC_SIZE }}>
-      <svg width={ARC_SIZE} height={ARC_SIZE} viewBox={`0 0 ${ARC_SIZE} ${ARC_SIZE}`} className="block">
-        {/* Track */}
+    <div className="relative shrink-0" style={{ width: SZ, height: SZ }}>
+      <svg width={SZ} height={SZ} viewBox={`0 0 ${SZ} ${SZ}`}>
+        {/* Track ring */}
+        <circle cx={CX} cy={CY} r={R} fill="none" stroke="#1c2b42" strokeWidth="7" />
+
+        {/* Progress arc — CSS transition, no Framer Motion (WebKit WebView compatibility) */}
         <circle
-          cx={ARC_CX} cy={ARC_CY} r={ARC_R}
+          cx={CX} cy={CY} r={R}
           fill="none"
-          stroke="#1c2b42"
-          strokeWidth="7"
-        />
-        {/* Progress fill */}
-        <motion.circle
-          cx={ARC_CX} cy={ARC_CY} r={ARC_R}
-          fill="none"
-          stroke={color}
+          stroke={strokeColor}
           strokeWidth="7"
           strokeLinecap="round"
-          strokeDasharray={ARC_CIRC}
-          transform={`rotate(-90 ${ARC_CX} ${ARC_CY})`}
-          animate={{ strokeDashoffset: dashOffset }}
-          transition={{ duration: 0.5, ease: 'easeInOut' }}
-          style={{ strokeDashoffset: dashOffset }}
+          strokeDasharray={`${CIRC} ${CIRC}`}
+          strokeDashoffset={offset}
+          transform={`rotate(-90 ${CX} ${CY})`}
+          style={{ transition: 'stroke-dashoffset 0.6s ease-in-out, stroke 0.4s ease' }}
         />
-        {/* Secondary "over" ring — thin red pulse outside the main arc */}
+
+        {/* Outer pulsing ring when over */}
         {isOver && (
           <circle
-            cx={ARC_CX} cy={ARC_CY} r={ARC_R + 7}
+            cx={CX} cy={CY} r={R + 8}
             fill="none"
-            stroke="rgba(239,68,68,0.25)"
+            stroke="rgba(239,68,68,0.2)"
             strokeWidth="3"
           />
         )}
       </svg>
 
-      {/* Inner text */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <p
-          className="font-mono text-xl font-light tabular leading-none"
-          style={{ color }}
+      {/* Text inside arc */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
+        <span
+          className="font-mono text-xl font-semibold tabular leading-none"
+          style={{ color: strokeColor }}
         >
-          {label}
-        </p>
-        {sublabel && (
-          <p className="text-xs font-semibold mt-1" style={{ color: sublabelColor ?? color }}>
-            {sublabel}
-          </p>
+          {elapsed}
+        </span>
+        {remaining && (
+          <span
+            className="text-[11px] font-semibold leading-none mt-0.5"
+            style={{ color: remainingColor }}
+          >
+            {remaining}
+          </span>
         )}
       </div>
     </div>
@@ -90,35 +90,38 @@ export default function ActiveSegmentPanel({ show, timeFormat, expectedStarts }:
   const now = useClock();
   const { holdSegment, resumeSegment, advanceSegment, settings, addToast } = useShowStore();
 
-  const segments     = [...show.segments].sort((a, b) => a.order - b.order);
-  const found        = segments.find(s => getSegmentStatus(s) === 'active');
-
+  const segments    = [...show.segments].sort((a, b) => a.order - b.order);
+  const found       = segments.find(s => getSegmentStatus(s) === 'active');
   if (!found) return null;
-  const activeSegment: Segment = found;
 
-  const activeIndex  = segments.indexOf(activeSegment);
-  const nextSegment: Segment | undefined = segments.find((s, i) => i > activeIndex && !s.actualStart);
+  const active: Segment = found;
+  const activeIdx   = segments.indexOf(active);
+  const next: Segment | undefined = segments.find((s, i) => i > activeIdx && !s.actualStart);
 
-  const elapsedMs  = getElapsedMs(activeSegment, now);
-  const isOnHold   = activeSegment.holds.some(h => !h.endTime);
-  const expectedMs = activeSegment.expectedDurationMinutes
-    ? activeSegment.expectedDurationMinutes * 60_000
-    : null;
+  const elapsedMs   = getElapsedMs(active, now);
+  const isOnHold    = active.holds.some(h => !h.endTime);
+  const expectedMs  = active.expectedDurationMinutes ? active.expectedDurationMinutes * 60_000 : null;
   const overUnderMs = expectedMs !== null ? elapsedMs - expectedMs : null;
   const isOver      = overUnderMs !== null && overUnderMs > 0;
 
-  const isInterval  = activeSegment.type === 'interval';
-  const backAt      = isInterval ? getIntervalBackAtTime(activeSegment) : null;
+  const isInterval  = active.type === 'interval';
+  const backAt      = isInterval ? getIntervalBackAtTime(active) : null;
   const countdownMs = backAt ? Math.max(0, backAt.getTime() - now.getTime()) : null;
 
+  // Estimated end time (clock time, not duration)
+  const estimatedEnd = active.actualStart && expectedMs
+    ? new Date(new Date(active.actualStart).getTime() + expectedMs)
+    : null;
+
+  // Arc progress
   const progress = expectedMs
-    ? (isInterval && backAt
-        ? Math.max(0, 1 - elapsedMs / expectedMs) // countdown for intervals
-        : elapsedMs / expectedMs)
+    ? isInterval
+      ? Math.max(0, 1 - elapsedMs / expectedMs) // drains as interval runs down
+      : Math.min(elapsedMs / expectedMs, 1)       // fills as act progresses
     : 0;
 
-  // Arc colour
-  const arcColor = isOnHold
+  // Arc colours
+  const strokeColor = isOnHold
     ? '#a855f7'
     : isOver
     ? '#ef4444'
@@ -126,50 +129,61 @@ export default function ActiveSegmentPanel({ show, timeFormat, expectedStarts }:
     ? '#a855f7'
     : '#f59e0b';
 
-  // Arc label = elapsed for acts; countdown for intervals
-  const arcLabel = isInterval && backAt
+  // Label inside arc: elapsed for acts, countdown for intervals
+  const arcElapsed = isInterval && backAt
     ? formatDuration(countdownMs ?? 0)
     : formatDuration(elapsedMs);
 
-  // Arc sublabel = over/under text or "remaining"
-  const arcSublabel = isInterval && backAt
-    ? 'remaining'
-    : overUnderMs !== null && Math.abs(overUnderMs) > 5000
-    ? `${formatOverUnder(overUnderMs).sign}${formatOverUnder(overUnderMs).label}`
-    : undefined;
+  // Sublabel inside arc: readable remaining / over text — NO negative sign
+  let arcRemaining: string | null = null;
+  let arcRemainingColor = strokeColor;
 
-  const arcSublabelColor = isOver ? '#ef4444' : isInterval ? '#a855f7' : '#f59e0b';
+  if (isInterval && backAt) {
+    arcRemaining = 'remaining';
+    arcRemainingColor = '#a855f7';
+  } else if (isOver && overUnderMs !== null) {
+    const absOver = Math.abs(overUnderMs);
+    const m = Math.floor(absOver / 60000);
+    const s = Math.floor((absOver % 60000) / 1000);
+    arcRemaining = `+${m > 0 ? `${m}m` : `${s}s`} over`;
+    arcRemainingColor = '#ef4444';
+  } else if (expectedMs !== null && overUnderMs !== null && overUnderMs < 0) {
+    const leftMs = Math.abs(overUnderMs);
+    const m = Math.floor(leftMs / 60000);
+    const s = Math.floor((leftMs % 60000) / 1000);
+    arcRemaining = `${m > 0 ? `${m}m` : `${s}s`} left`;
+    arcRemainingColor = '#64748b';
+  }
+
+  const nextLabel    = next?.label ?? null;
+  const nextExpected = next ? expectedStarts.get(next.id) : null;
 
   function handleHold() {
     if (isOnHold) {
-      resumeSegment(show.id, activeSegment.id);
-      addToast({ title: 'Resumed', message: `${activeSegment.label} running`, type: 'info' });
+      resumeSegment(show.id, active.id);
+      addToast({ title: 'Resumed', message: `${active.label} running`, type: 'info' });
     } else {
-      holdSegment(show.id, activeSegment.id);
-      addToast({ title: 'Hold', message: `${activeSegment.label} paused`, type: 'warning' });
+      holdSegment(show.id, active.id);
+      addToast({ title: 'Hold', message: `${active.label} paused`, type: 'warning' });
     }
   }
 
   function handleNext() {
-    advanceSegment(show.id, activeSegment.id);
-    if (nextSegment?.type === 'interval' && nextSegment.expectedDurationMinutes) {
+    advanceSegment(show.id, active.id);
+    if (next?.type === 'interval' && next.expectedDurationMinutes) {
       scheduleIntervalNotification(
-        { ...nextSegment, actualStart: new Date().toISOString() },
+        { ...next, actualStart: new Date().toISOString() },
         settings,
         timeFormat
       );
     }
     addToast({
-      title: nextSegment ? `Started: ${nextSegment.label}` : 'Segment ended',
-      message: nextSegment ? '' : `${activeSegment.label} complete`,
+      title: next ? `Started: ${next.label}` : 'Segment ended',
+      message: next ? '' : `${active.label} complete`,
       type: 'success',
     });
   }
 
-  const nextLabel    = nextSegment?.label ?? null;
-  const nextExpected = nextSegment ? expectedStarts.get(nextSegment.id) : null;
-
-  // Panel border / background
   const panelBorder = isInterval ? 'border-purple-500/30' : 'border-amber-500/30';
   const panelBg     = isInterval ? 'bg-show-panel-alt'    : 'bg-show-card-alt';
 
@@ -181,66 +195,99 @@ export default function ActiveSegmentPanel({ show, timeFormat, expectedStarts }:
       transition={{ duration: 0.2 }}
       className={`mx-6 mb-3 rounded-xl border overflow-hidden ${panelBorder} ${panelBg}`}
     >
-      <div className="px-4 py-3">
+      <div className="px-4 pt-3 pb-3">
 
-        {/* ── Row 1: info + arc ─────────────────────────────────────────────── */}
-        <div className="flex items-start gap-4">
+        {/* ── Top row: badge + name ─────────────────────────────────────────── */}
+        <div className="flex items-center gap-2 mb-3">
+          <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded ${
+            isInterval ? 'bg-purple-500/20 text-purple-400' : 'bg-amber-500/20 text-amber-400'
+          }`}>
+            {isInterval ? 'Interval' : 'Live'}
+          </span>
+          {isOnHold && (
+            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-purple-500/20 text-purple-400 animate-pulse">
+              Hold
+            </span>
+          )}
+          <span className="text-base font-bold text-slate-100 truncate flex-1">{active.label}</span>
+          <span className="text-xs text-slate-600 shrink-0">
+            Started {formatTime(active.actualStart, timeFormat)}
+            {active.expectedDurationMinutes ? ` · ${active.expectedDurationMinutes}m exp` : ''}
+          </span>
+        </div>
 
-          {/* Left: badge + name + meta */}
-          <div className="flex-1 min-w-0 pt-0.5">
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className={`text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded ${
-                isInterval
-                  ? 'bg-purple-500/20 text-purple-400'
-                  : 'bg-amber-500/20 text-amber-400'
-              }`}>
-                {isInterval ? 'Interval' : 'Live'}
-              </span>
-              {isOnHold && (
-                <span className="text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 animate-pulse">
-                  Hold
-                </span>
-              )}
-            </div>
+        {/* ── Middle: arc (left) + estimated info (right) ───────────────────── */}
+        <div className="flex items-center gap-4">
 
-            <h3 className="text-xl font-bold text-slate-100 leading-tight truncate">
-              {activeSegment.label}
-            </h3>
+          {/* Arc */}
+          <Arc
+            progress={progress}
+            isOver={isOver && !isInterval}
+            strokeColor={strokeColor}
+            elapsed={arcElapsed}
+            remaining={arcRemaining}
+            remainingColor={arcRemainingColor}
+          />
 
-            <p className="text-xs text-slate-600 mt-0.5">
-              Started {formatTime(activeSegment.actualStart, timeFormat)}
-              {activeSegment.expectedDurationMinutes && ` · Exp ${activeSegment.expectedDurationMinutes}m`}
-            </p>
+          {/* Right info column */}
+          <div className="flex-1 min-w-0 space-y-3">
 
-            {/* Interval back-at */}
+            {/* Est. end time — the key number */}
+            {estimatedEnd && !isOver && (
+              <div>
+                <p className="text-[10px] text-slate-600 uppercase tracking-wider mb-0.5">
+                  {isInterval ? 'Back at' : 'Est. end'}
+                </p>
+                <p className={`text-2xl font-bold font-mono tabular leading-none ${
+                  isInterval ? 'text-purple-300' : 'text-amber-300'
+                }`}>
+                  {formatTime(estimatedEnd, timeFormat)}
+                </p>
+              </div>
+            )}
+
+            {/* Interval "back at" with Coffee */}
             {isInterval && backAt && (
-              <div className="mt-2 flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5">
                 <Coffee className="w-3 h-3 text-purple-400 shrink-0" />
                 <span className="text-sm font-semibold text-purple-200">
-                  Back at {formatTime(backAt, timeFormat)}
+                  {formatTime(backAt, timeFormat)}
                 </span>
                 {countdownMs !== null && countdownMs <= 5 * 60_000 && (
-                  <span className="text-xs text-red-400 font-semibold animate-pulse ml-1">
+                  <span className="text-xs text-red-400 font-semibold animate-pulse">
                     — {formatDuration(countdownMs)} left
                   </span>
                 )}
               </div>
             )}
-          </div>
 
-          {/* Right: arc progress */}
-          <ProgressArc
-            progress={progress}
-            isOver={isOver && !isInterval}
-            color={arcColor}
-            label={arcLabel}
-            sublabel={arcSublabel}
-            sublabelColor={arcSublabelColor}
-          />
+            {/* Over indicator — shown instead of est. end when running over */}
+            {isOver && overUnderMs !== null && (
+              <div>
+                <p className="text-[10px] text-slate-600 uppercase tracking-wider mb-0.5">Running over</p>
+                <p className="text-2xl font-bold font-mono tabular leading-none text-red-400">
+                  +{formatDuration(overUnderMs)}
+                </p>
+              </div>
+            )}
+
+            {/* Up next */}
+            {next && (
+              <div>
+                <p className="text-[10px] text-slate-600 uppercase tracking-wider mb-0.5">Up next</p>
+                <p className="text-sm font-semibold text-slate-300 truncate">{next.label}</p>
+                {nextExpected && (
+                  <p className="text-xs text-slate-600 font-mono tabular">
+                    Est. {formatTime(nextExpected, timeFormat)}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* ── Row 2: action buttons ────────────────────────────────────────── */}
-        <div className="flex items-center justify-between mt-3">
+        {/* ── Action row ───────────────────────────────────────────────────── */}
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5">
           <button
             onClick={handleHold}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all border ${
@@ -271,21 +318,10 @@ export default function ActiveSegmentPanel({ show, timeFormat, expectedStarts }:
               onClick={handleNext}
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-700 hover:bg-green-600 text-white text-sm font-bold transition-all"
             >
-              End segment
-              <ChevronRight className="w-3.5 h-3.5" />
+              End segment <ChevronRight className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
-
-        {/* Up next hint */}
-        {nextSegment && (
-          <p className="mt-2 text-xs text-slate-700">
-            Up next: <span className="text-slate-500">{nextSegment.label}</span>
-            {nextExpected && (
-              <span className="text-slate-700"> · Est. {formatTime(nextExpected, timeFormat)}</span>
-            )}
-          </p>
-        )}
 
       </div>
     </motion.div>

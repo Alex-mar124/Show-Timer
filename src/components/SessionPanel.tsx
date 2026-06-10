@@ -20,12 +20,12 @@ function PinDisplay({ pin }: { pin: string }) {
   }
 
   return (
-    <div className="flex items-center gap-3">
-      <div className="flex gap-2">
+    <div className="flex items-center gap-2.5">
+      <div className="flex gap-1.5">
         {pin.padEnd(6, '·').split('').map((d, i) => (
           <div
             key={i}
-            className="w-10 h-12 flex items-center justify-center rounded-xl font-mono text-2xl font-bold text-amber-400"
+            className="w-8 h-10 flex items-center justify-center rounded-lg font-mono text-xl font-bold text-amber-400"
             style={{ background: 'rgba(245,158,11,0.08)', border: '1.5px solid rgba(245,158,11,0.3)' }}
           >
             {d}
@@ -34,7 +34,7 @@ function PinDisplay({ pin }: { pin: string }) {
       </div>
       <button
         onClick={copy}
-        className="w-9 h-9 rounded-xl border border-show-border hover:bg-show-hover flex items-center justify-center text-slate-500 hover:text-slate-200 transition-colors shrink-0"
+        className="w-8 h-8 rounded-lg border border-show-border hover:bg-show-hover flex items-center justify-center text-slate-500 hover:text-slate-200 transition-colors shrink-0"
         title="Copy PIN"
       >
         {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -116,7 +116,7 @@ export default function SessionPanel() {
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 16 }}
       transition={{ type: 'spring', damping: 30, stiffness: 320 }}
-      className="fixed top-14 right-0 bottom-0 w-[320px] bg-show-surface border-l border-show-border z-40 flex flex-col shadow-[−4px_0_24px_rgba(0,0,0,0.4)]"
+      className="fixed top-14 right-0 bottom-0 w-[min(320px,100vw)] bg-show-surface border-l border-show-border z-40 flex flex-col shadow-[-4px_0_24px_rgba(0,0,0,0.4)]"
     >
       {/* ── Header ── */}
       <div className="shrink-0 flex items-center justify-between px-4 py-3.5 border-b border-show-border">
