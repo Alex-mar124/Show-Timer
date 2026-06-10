@@ -60,6 +60,8 @@ function defaultSegments(bumpInStartTime?: string): Segment[] {
     type: t.type,
     label: t.label,
     expectedDurationMinutes: t.exp,
+    plannedStart: null,
+    plannedEnd: null,
     actualStart: t.type === 'bump_in' ? (bumpInStartTime ?? null) : null,
     actualEnd: null,
     holds: [],
@@ -120,6 +122,7 @@ interface ShowStore {
   updateSegmentLabel: (showId: string, segmentId: string, label: string) => void;
   updateSegmentExpected: (showId: string, segmentId: string, minutes: number | null) => void;
   updateSegmentNotes: (showId: string, segmentId: string, notes: string) => void;
+  updateSegmentSchedule: (showId: string, segmentId: string, field: 'plannedStart' | 'plannedEnd', value: string | null) => void;
   addSegment: (showId: string, type: SegmentType, afterOrder?: number) => void;
   removeSegment: (showId: string, segmentId: string) => void;
   reorderSegments: (showId: string, orderedIds: string[]) => void;
@@ -397,6 +400,20 @@ export const useShowStore = create<ShowStore>((set, get) => ({
     get().saveToStore();
   },
 
+  updateSegmentSchedule: (showId, segmentId, field, value) => {
+    set(s => ({
+      shows: s.shows.map(sh =>
+        sh.id !== showId ? sh : {
+          ...sh,
+          segments: sh.segments.map(seg =>
+            seg.id !== segmentId ? seg : { ...seg, [field]: value || null }
+          ),
+        }
+      ),
+    }));
+    get().saveToStore();
+  },
+
   addSegment: (showId, type, afterOrder) => {
     const labelMap: Record<SegmentType, string> = {
       doors: 'Doors Open', house_open: 'House Open', act: 'Act',
@@ -414,6 +431,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       const seg: Segment = {
         id: uid(), type, label: labelMap[type],
         expectedDurationMinutes: defaultDuration[type] ?? null,
+        plannedStart: null, plannedEnd: null,
         actualStart: null, actualEnd: null, holds: [], notes: '', order,
       };
       const updated = [...show.segments, seg]
@@ -525,11 +543,12 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       segments = data.templateSegments.map(t => ({
         id: uid(), type: t.type, label: t.label,
         expectedDurationMinutes: t.expectedDurationMinutes,
+        plannedStart: null, plannedEnd: null,
         actualStart: null, actualEnd: null, holds: [], notes: '', order: t.order,
       }));
     } else {
       const def = NON_PERF_SINGLE[firstDayType]!;
-      segments = [{ id: uid(), type: def.type, label: def.label, expectedDurationMinutes: def.exp, actualStart: null, actualEnd: null, holds: [], notes: '', order: 0 }];
+      segments = [{ id: uid(), type: def.type, label: def.label, expectedDurationMinutes: def.exp, plannedStart: null, plannedEnd: null, actualStart: null, actualEnd: null, holds: [], notes: '', order: 0 }];
     }
 
     const DAY_TITLES: Record<DayType, string> = {
@@ -611,6 +630,8 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       type: s.type,
       label: s.label,
       expectedDurationMinutes: s.expectedDurationMinutes,
+      plannedStart: null,
+      plannedEnd: null,
       actualStart: null,
       actualEnd: null,
       holds: [],

@@ -15,11 +15,21 @@ export function computeExpectedStarts(show: Show): Map<string, Date | null> {
 
   let prevExpectedEnd: Date | null = null;
 
+  // Helper: convert "HH:MM" on show date to a local Date
+  function timeOnDate(hhmm: string): Date {
+    const [h, m] = hhmm.split(':').map(Number);
+    const [y, mo, d] = show.date.split('-').map(Number);
+    return new Date(y, mo - 1, d, h, m, 0, 0);
+  }
+
   for (let i = 0; i < sorted.length; i++) {
     const seg = sorted[i];
     let expectedStart: Date | null = null;
 
-    if (i === 0 && show.doorsOpenTime) {
+    // User-set planned start overrides all cascade logic
+    if (seg.plannedStart) {
+      expectedStart = timeOnDate(seg.plannedStart);
+    } else if (i === 0 && show.doorsOpenTime) {
       // First segment: use doors open time if provided
       expectedStart = new Date(show.doorsOpenTime);
     } else if (i === 0 && prevExpectedEnd) {
@@ -45,18 +55,17 @@ export function computeExpectedStarts(show: Show): Map<string, Date | null> {
 
     // Calculate the expected END of this segment to feed the next iteration
     if (seg.type === 'show_end') {
-      // show_end has no duration, just mark as null
       prevExpectedEnd = seg.actualStart ? new Date(seg.actualStart) : expectedStart;
     } else if (seg.actualEnd) {
-      // Segment finished — actual end is our most accurate anchor
       prevExpectedEnd = new Date(seg.actualEnd);
+    } else if (seg.plannedEnd && !seg.actualStart) {
+      // User-set planned end — use as cascade anchor when segment hasn't started yet
+      prevExpectedEnd = timeOnDate(seg.plannedEnd);
     } else if (seg.actualStart && seg.expectedDurationMinutes) {
-      // Currently running — expected end = actual start + expected duration
       prevExpectedEnd = new Date(
         new Date(seg.actualStart).getTime() + seg.expectedDurationMinutes * 60_000
       );
     } else if (expectedStart && seg.expectedDurationMinutes) {
-      // Not started — cascade expected start + expected duration
       prevExpectedEnd = new Date(
         expectedStart.getTime() + seg.expectedDurationMinutes * 60_000
       );

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Play, Square, Pause, RotateCcw, Pencil, Trash2,
-  ChevronDown, ChevronUp, GripVertical, Flag,
+  ChevronDown, ChevronUp, GripVertical, Flag, Clock,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSortable } from '@dnd-kit/sortable';
@@ -77,6 +77,7 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
   const {
     startSegment, stopSegment, holdSegment, resumeSegment, removeSegment,
     settings, addToast, updateSegmentLabel, updateSegmentExpected, updateSegmentNotes,
+    updateSegmentSchedule,
   } = useShowStore();
   const now = useClock();
 
@@ -103,6 +104,9 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
     plotting:  'border-l-2 border-l-indigo-500/50',
   };
   const prodAccent = PROD_ACCENT[segment.type] ?? '';
+
+  const SCHEDULE_TYPES: Set<SegmentType> = new Set(['bump_in', 'bump_out', 'rehearsal', 'plotting', 'doors']);
+  const showSchedule = SCHEDULE_TYPES.has(segment.type);
 
   const [editModal,    setEditModal]    = useState<'actualStart' | 'actualEnd' | null>(null);
   const [notesOpen,    setNotesOpen]    = useState(false);
@@ -282,6 +286,43 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
               )}
             </div>
           </div>
+
+          {/* ── Planned schedule row (qualifying types only) ─────────────────── */}
+          {showSchedule && (
+            <div className="flex items-center gap-2 mt-2 pl-[46px]">
+              <Clock className="w-3 h-3 text-slate-600 shrink-0" />
+              <input
+                type="time"
+                value={segment.plannedStart ?? ''}
+                onChange={e => updateSegmentSchedule(showId, segment.id, 'plannedStart', e.target.value || null)}
+                className="bg-show-surface border border-show-border rounded-md px-2 py-1 text-xs text-slate-300 focus:outline-none focus:border-amber-500/50 transition-colors w-[90px]"
+                title="Planned start time"
+              />
+              <span className="text-slate-700 text-xs">→</span>
+              <input
+                type="time"
+                value={segment.plannedEnd ?? ''}
+                onChange={e => updateSegmentSchedule(showId, segment.id, 'plannedEnd', e.target.value || null)}
+                className="bg-show-surface border border-show-border rounded-md px-2 py-1 text-xs text-slate-300 focus:outline-none focus:border-amber-500/50 transition-colors w-[90px]"
+                title="Planned end time"
+              />
+              {segment.plannedStart && segment.plannedEnd && (() => {
+                const [sh, sm] = segment.plannedStart.split(':').map(Number);
+                const [eh, em] = segment.plannedEnd.split(':').map(Number);
+                const diffMin = (eh * 60 + em) - (sh * 60 + sm);
+                if (diffMin > 0) {
+                  const h = Math.floor(diffMin / 60);
+                  const m = diffMin % 60;
+                  return (
+                    <span className="text-[10px] text-slate-600">
+                      {h > 0 ? `${h}h ` : ''}{m > 0 ? `${m}m` : ''}
+                    </span>
+                  );
+                }
+                return null;
+              })()}
+            </div>
+          )}
 
           {/* ── Second row: expected / over-under / back-at / actions ────────── */}
           <div className="flex items-center justify-between mt-2 pl-[46px]">

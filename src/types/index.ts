@@ -85,6 +85,8 @@ export interface Segment {
   type: SegmentType;
   label: string;
   expectedDurationMinutes: number | null;
+  plannedStart: string | null;  // "HH:MM" — user-set planned start time
+  plannedEnd: string | null;    // "HH:MM" — user-set planned end time
   actualStart: string | null;
   actualEnd: string | null;
   holds: Hold[];
