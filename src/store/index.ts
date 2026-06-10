@@ -46,12 +46,13 @@ function defaultSettings(): AppSettings {
   };
 }
 
-function defaultSegments(): Segment[] {
+function defaultSegments(bumpInStartTime?: string): Segment[] {
   const types: Array<{ type: SegmentType; label: string; exp: number | null }> = [
-    { type: 'doors', label: 'Doors', exp: 30 },
-    { type: 'act', label: 'Act 1', exp: 55 },
+    { type: 'bump_in',  label: 'Bump In',  exp: null },
+    { type: 'doors',    label: 'Doors',    exp: 30 },
+    { type: 'act',      label: 'Act 1',    exp: 55 },
     { type: 'interval', label: 'Interval', exp: 20 },
-    { type: 'act', label: 'Act 2', exp: 55 },
+    { type: 'act',      label: 'Act 2',    exp: 55 },
     { type: 'show_end', label: 'Show End', exp: null },
   ];
   return types.map((t, i) => ({
@@ -59,7 +60,7 @@ function defaultSegments(): Segment[] {
     type: t.type,
     label: t.label,
     expectedDurationMinutes: t.exp,
-    actualStart: null,
+    actualStart: t.type === 'bump_in' ? (bumpInStartTime ?? null) : null,
     actualEnd: null,
     holds: [],
     notes: '',
@@ -211,7 +212,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       date: data.date,
       plannedStartTime: data.plannedStartTime,
       doorsOpenTime: data.doorsOpenTime,
-      segments: defaultSegments(),
+      segments: defaultSegments(nowISO()),
       notes: '',
       techNotes: '',
       createdAt: nowISO(),

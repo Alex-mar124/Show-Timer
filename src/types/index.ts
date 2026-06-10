@@ -152,12 +152,30 @@ export function getElapsedMs(segment: Segment, now: Date): number {
   return Math.max(0, end - start - holdMs);
 }
 
+const SHOW_CORE_TYPES = new Set<SegmentType>(['act', 'interval', 'curtain_call', 'custom']);
+const PRODUCTION_TYPES = new Set<SegmentType>(['bump_in', 'bump_out', 'rehearsal', 'plotting']);
+
 export function getTotalRunningMs(show: Show, now: Date): number {
-  // Freeze at show_end time if it has been marked — never count beyond that point
+  // Freeze at show_end time if marked
   const showEnd = show.segments.find(s => s.type === 'show_end');
   const cutoff = showEnd?.actualStart ? new Date(showEnd.actualStart) : now;
-
   return show.segments
     .filter(s => s.type !== 'doors' && s.type !== 'house_open' && s.type !== 'show_end')
     .reduce((acc, s) => acc + getElapsedMs(s, cutoff), 0);
 }
+
+export function getShowTimeMs(show: Show, now: Date): number {
+  const showEnd = show.segments.find(s => s.type === 'show_end');
+  const cutoff = showEnd?.actualStart ? new Date(showEnd.actualStart) : now;
+  return show.segments
+    .filter(s => SHOW_CORE_TYPES.has(s.type))
+    .reduce((acc, s) => acc + getElapsedMs(s, cutoff), 0);
+}
+
+export function getProductionSegmentMs(show: Show, now: Date): number {
+  return show.segments
+    .filter(s => PRODUCTION_TYPES.has(s.type))
+    .reduce((acc, s) => acc + getElapsedMs(s, now), 0);
+}
+
+export { SHOW_CORE_TYPES, PRODUCTION_TYPES };

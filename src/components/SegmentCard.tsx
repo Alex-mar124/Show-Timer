@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useShowStore } from '../store';
-import type { Segment, TimeFormat } from '../types';
+import type { Segment, TimeFormat, SegmentType } from '../types';
 import { getSegmentStatus, getElapsedMs } from '../types';
 import { useClock } from '../hooks/useClock';
 import { formatTime, formatDuration, formatOverUnder } from '../utils/time';
@@ -96,6 +96,14 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
   const isComplete = status === 'complete';
   const isShowEnd  = segment.type === 'show_end';
 
+  const PROD_ACCENT: Partial<Record<SegmentType, string>> = {
+    bump_in:   'border-l-2 border-l-orange-500/50',
+    bump_out:  'border-l-2 border-l-rose-500/50',
+    rehearsal: 'border-l-2 border-l-teal-500/50',
+    plotting:  'border-l-2 border-l-indigo-500/50',
+  };
+  const prodAccent = PROD_ACCENT[segment.type] ?? '';
+
   const [editModal,    setEditModal]    = useState<'actualStart' | 'actualEnd' | null>(null);
   const [notesOpen,    setNotesOpen]    = useState(false);
   const [editingLabel, setEditingLabel] = useState(false);
@@ -159,7 +167,7 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
         style={dragStyle}
         initial={{ opacity: 0, y: 4 }}
         animate={{ opacity: isDragging ? 0.55 : 1, y: 0 }}
-        className={`relative border-b border-show-border last:border-b-0 transition-colors duration-300 ${rowBg}`}
+        className={`relative border-b border-show-border last:border-b-0 transition-colors duration-300 ${rowBg} ${prodAccent}`}
       >
         <div className="px-4 py-3">
 

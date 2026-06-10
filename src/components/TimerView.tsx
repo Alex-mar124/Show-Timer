@@ -18,7 +18,7 @@ import SegmentCard from './SegmentCard';
 import ActiveSegmentPanel from './ActiveSegmentPanel';
 import ReportPanel from './ReportPanel';
 import type { PerformanceType, DayType, SegmentType } from '../types';
-import { getTotalRunningMs } from '../types';
+import { getTotalRunningMs, getShowTimeMs, getProductionSegmentMs, SHOW_CORE_TYPES, PRODUCTION_TYPES } from '../types';
 import { formatDuration, formatDurationShort } from '../utils/time';
 import { schedulePreShowNotifications } from '../utils/notifications';
 import { computeExpectedStarts } from '../utils/schedule';
@@ -98,6 +98,10 @@ export default function TimerView() {
 
   const segments = [...show.segments].sort((a, b) => a.order - b.order);
   const totalMs = getTotalRunningMs(show, now);
+  const showTimeMs = getShowTimeMs(show, now);
+  const productionMs = getProductionSegmentMs(show, now);
+  const hasShowSegs = segments.some(s => SHOW_CORE_TYPES.has(s.type));
+  const hasProdSegs = segments.some(s => PRODUCTION_TYPES.has(s.type));
 
   // Expected show end = expected start of the show_end segment (or last segment)
   const showEndSeg = segments.find(s => s.type === 'show_end') ?? segments[segments.length - 1];
@@ -118,6 +122,12 @@ export default function TimerView() {
   ];
 
   const isNonPerfDay = !!show?.dayType && show.dayType !== 'performance';
+
+  function segmentZone(type: SegmentType): 'pre' | 'show' | 'post' {
+    if (type === 'bump_out') return 'post';
+    if (PRODUCTION_TYPES.has(type)) return 'pre';
+    return 'show';
+  }
 
   return (
     <div className="flex flex-1 min-h-0">
@@ -190,105 +200,126 @@ export default function TimerView() {
           expectedStarts={expectedStarts}
         />
 
-        {/* Segment list */}
+        {/* Segment list — always draggable */}
         <div className="flex-1 overflow-y-auto px-6 pb-4">
-          {isNonPerfDay ? (
-            /* Simplified single-block view for non-performance days */
-            <div className="rounded-xl border border-show-border overflow-hidden bg-show-card">
-              {segments.map(seg => (
-                <SegmentCard
-                  key={seg.id}
-                  showId={show.id}
-                  segment={seg}
-                  timeFormat={settings.timeFormat}
-                  expectedStartAt={expectedStarts.get(seg.id) ?? null}
-                />
-              ))}
-            </div>
-          ) : (
-            /* Full draggable cue sheet for performance days */
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={segments.map(s => s.id)}
+              strategy={verticalListSortingStrategy}
             >
-              <SortableContext
-                items={segments.map(s => s.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="rounded-xl border border-show-border overflow-hidden bg-show-card">
-                  {segments.map(seg => (
-                    <SegmentCard
-                      key={seg.id}
-                      showId={show.id}
-                      segment={seg}
-                      timeFormat={settings.timeFormat}
-                      expectedStartAt={expectedStarts.get(seg.id) ?? null}
-                    />
+              <div className="rounded-xl border border-show-border overflow-hidden bg-show-card">
+                {segments.map((seg, i) => {
+                  const prevZone = i > 0 ? segmentZone(segments[i - 1].type) : null;
+                  const currZone = segmentZone(seg.type);
+                  const showShowDivider  = prevZone !== null && prevZone !== 'show'  && currZone === 'show';
+                  const showPostDivider  = prevZone !== null && prevZone !== 'post'  && currZone === 'post';
+                  return (
+                    <div key={seg.id}>
+                      {showShowDivider && (
+                        <div className="flex items-center gap-3 px-4 py-1.5 bg-show-surface/60 border-b border-show-border">
+                          <div className="h-px flex-1 bg-amber-500/20" />
+                          <span className="text-[9px] font-bold text-amber-500/50 uppercase tracking-[0.2em]">Show</span>
+                          <div className="h-px flex-1 bg-amber-500/20" />
+                        </div>
+                      )}
+                      {showPostDivider && (
+                        <div className="flex items-center gap-3 px-4 py-1.5 bg-show-surface/60 border-b border-show-border">
+                          <div className="h-px flex-1 bg-rose-500/20" />
+                          <span className="text-[9px] font-bold text-rose-500/50 uppercase tracking-[0.2em]">Post-Show</span>
+                          <div className="h-px flex-1 bg-rose-500/20" />
+                        </div>
+                      )}
+                      <SegmentCard
+                        showId={show.id}
+                        segment={seg}
+                        timeFormat={settings.timeFormat}
+                        expectedStartAt={expectedStarts.get(seg.id) ?? null}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </SortableContext>
+          </DndContext>
+
+          {/* Add segment */}
+          <div className="mt-4 relative">
+            <button
+              onClick={() => setAddMenuOpen(!addMenuOpen)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-show-border hover:border-amber-500/30 text-slate-600 hover:text-amber-400 text-xs font-medium transition-all"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add Segment
+              <ChevronDown className={`w-3 h-3 transition-transform ${addMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            <AnimatePresence>
+              {addMenuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  className="absolute top-full left-0 mt-1.5 z-20 bg-show-card border border-show-border rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden min-w-[180px]"
+                >
+                  <p className="px-3 pt-2.5 pb-1 text-[10px] text-slate-600 uppercase tracking-widest font-semibold">Show</p>
+                  {addTypes.filter(t => t.group === 'show').map(({ type, label }) => (
+                    <button
+                      key={type}
+                      onClick={() => { addSegment(show.id, type); setAddMenuOpen(false); }}
+                      className="flex w-full items-center px-4 py-2.5 text-sm text-slate-300 hover:bg-show-hover hover:text-slate-100 transition-colors"
+                    >
+                      {label}
+                    </button>
                   ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-          )}
-
-          {/* Add segment — hidden for single-segment non-performance days */}
-          {!isNonPerfDay && (
-            <div className="mt-4 relative">
-              <button
-                onClick={() => setAddMenuOpen(!addMenuOpen)}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-show-border hover:border-amber-500/30 text-slate-600 hover:text-amber-400 text-xs font-medium transition-all"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Add Segment
-                <ChevronDown className={`w-3 h-3 transition-transform ${addMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              <AnimatePresence>
-                {addMenuOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    className="absolute top-full left-0 mt-1.5 z-20 bg-show-card border border-show-border rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden min-w-[180px]"
-                  >
-                    <p className="px-3 pt-2.5 pb-1 text-[10px] text-slate-600 uppercase tracking-widest font-semibold">Show</p>
-                    {addTypes.filter(t => t.group === 'show').map(({ type, label }) => (
-                      <button
-                        key={type}
-                        onClick={() => { addSegment(show.id, type); setAddMenuOpen(false); }}
-                        className="flex w-full items-center px-4 py-2.5 text-sm text-slate-300 hover:bg-show-hover hover:text-slate-100 transition-colors"
-                      >
-                        {label}
-                      </button>
-                    ))}
-                    <div className="border-t border-show-border/50 my-1" />
-                    <p className="px-3 pt-1.5 pb-1 text-[10px] text-slate-600 uppercase tracking-widest font-semibold">Production</p>
-                    {addTypes.filter(t => t.group === 'other').map(({ type, label }) => (
-                      <button
-                        key={type}
-                        onClick={() => { addSegment(show.id, type); setAddMenuOpen(false); }}
-                        className="flex w-full items-center px-4 py-2.5 text-sm text-slate-300 hover:bg-show-hover hover:text-slate-100 transition-colors"
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
+                  <div className="border-t border-show-border/50 my-1" />
+                  <p className="px-3 pt-1.5 pb-1 text-[10px] text-slate-600 uppercase tracking-widest font-semibold">Production</p>
+                  {addTypes.filter(t => t.group === 'other').map(({ type, label }) => (
+                    <button
+                      key={type}
+                      onClick={() => { addSegment(show.id, type); setAddMenuOpen(false); }}
+                      className="flex w-full items-center px-4 py-2.5 text-sm text-slate-300 hover:bg-show-hover hover:text-slate-100 transition-colors"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
 
         {/* Total bar */}
         <div className="px-6 py-3 border-t border-show-border bg-show-surface flex items-center justify-between gap-3">
           <div className="flex items-center gap-4 shrink-0">
-            <div>
-              <p className="text-[10px] text-slate-600 uppercase tracking-wider">Total Running</p>
-              <p className="font-mono text-lg font-semibold text-slate-200 tabular">
-                {formatDuration(totalMs)}
-              </p>
-            </div>
-            {totalExpectedMin > 0 && (
+            {hasShowSegs && (
+              <div>
+                <p className="text-[10px] text-slate-600 uppercase tracking-wider">{hasProdSegs ? 'Show' : 'Total Running'}</p>
+                <p className="font-mono text-lg font-semibold text-amber-400 tabular">
+                  {formatDuration(showTimeMs)}
+                </p>
+              </div>
+            )}
+            {hasProdSegs && !hasShowSegs && (
+              <div>
+                <p className="text-[10px] text-slate-600 uppercase tracking-wider">Total Running</p>
+                <p className="font-mono text-lg font-semibold text-slate-200 tabular">
+                  {formatDuration(totalMs)}
+                </p>
+              </div>
+            )}
+            {hasProdSegs && hasShowSegs && (
+              <div>
+                <p className="text-[10px] text-slate-600 uppercase tracking-wider">Production</p>
+                <p className="font-mono text-lg font-semibold text-orange-400 tabular">
+                  {formatDuration(productionMs)}
+                </p>
+              </div>
+            )}
+            {totalExpectedMin > 0 && hasShowSegs && (
               <div>
                 <p className="text-[10px] text-slate-600 uppercase tracking-wider">Expected</p>
                 <p className="font-mono text-lg text-slate-500 tabular">
