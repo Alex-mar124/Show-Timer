@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { X, Theater, ChevronUp, ChevronDown, Clock } from 'lucide-react';
+import { X, ChevronUp, ChevronDown, Clock } from 'lucide-react';
+import AppLogo from './AppLogo';
 import { useShowStore } from '../store';
 import { todayISO } from '../utils/time';
 import { schedulePreShowNotifications } from '../utils/notifications';
@@ -153,9 +154,7 @@ export default function ShowSetupModal() {
               {/* Header */}
               <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-show-border">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-                    <Theater className="w-4 h-4 text-amber-400" />
-                  </div>
+                  <AppLogo size={36} />
                   <h2 className="text-lg font-semibold text-slate-100">New Show</h2>
                 </div>
                 <button

@@ -1,4 +1,5 @@
-import { Plus, Theater, ChevronDown } from 'lucide-react';
+import { Plus, ChevronDown } from 'lucide-react';
+import AppLogo from './AppLogo';
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -53,9 +54,7 @@ export default function TimerView() {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center max-w-sm">
-          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-5">
-            <Theater className="w-7 h-7 text-amber-400" />
-          </div>
+          <AppLogo size={72} className="mx-auto mb-5" />
           <h2 className="text-xl font-semibold text-slate-200 mb-2">No Active Show</h2>
           <p className="text-sm text-slate-500 mb-6 leading-relaxed">
             Create a new show to start timing. Your acts, intervals, and all time events will be recorded here.
@@ -133,7 +132,8 @@ export default function TimerView() {
               items={segments.map(s => s.id)}
               strategy={verticalListSortingStrategy}
             >
-              <div className="space-y-2">
+              {/* Cue-sheet container — individual rows have border-b */}
+              <div className="rounded-xl border border-show-border overflow-hidden bg-show-card">
                 {segments.map(seg => (
                   <SegmentCard
                     key={seg.id}

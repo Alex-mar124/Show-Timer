@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { Timer, History, Settings, PanelRight, Plus } from 'lucide-react';
+import { History, Settings, PanelRight, Plus, Timer } from 'lucide-react';
+import AppLogo, { AppLogoMark } from './components/AppLogo';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useShowStore } from './store';
 import TimerView from './components/TimerView';
@@ -14,9 +15,9 @@ import { formatDateShort } from './utils/time';
 import type { View } from './types';
 
 const NAV_ITEMS: Array<{ view: View; Icon: React.ElementType; label: string }> = [
-  { view: 'timer', Icon: Timer, label: 'Timer' },
+  { view: 'timer',   Icon: Timer,   label: 'Timer' },
   { view: 'history', Icon: History, label: 'History' },
-  { view: 'settings', Icon: Settings, label: 'Settings' },
+  { view: 'settings',Icon: Settings,label: 'Settings' },
 ];
 
 export default function App() {
@@ -89,9 +90,7 @@ export default function App() {
     return (
       <div className="h-full bg-show-base flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-3">
-            <Timer className="w-5 h-5 text-amber-400" />
-          </div>
+          <AppLogo size={52} className="mx-auto mb-3 opacity-90" />
           <p className="text-slate-500 text-sm">Loading…</p>
         </div>
       </div>
@@ -104,9 +103,7 @@ export default function App() {
       <header className="shrink-0 flex items-center px-5 h-14 border-b border-show-border bg-show-surface">
         {/* Brand */}
         <div className="flex items-center gap-2.5 w-44 shrink-0">
-          <div className="w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-500/25 flex items-center justify-center">
-            <Timer className="w-3.5 h-3.5 text-amber-400" />
-          </div>
+          <AppLogo size={28} />
           <span className="font-semibold text-sm text-slate-300 tracking-wide">SHOW TIMER</span>
         </div>
 
@@ -143,11 +140,14 @@ export default function App() {
                 title={label}
                 className={`relative w-8 h-7 rounded-md flex items-center justify-center transition-all ${
                   view === v
-                    ? 'bg-amber-500/15 text-amber-400'
+                    ? 'text-amber-400'
                     : 'text-slate-600 hover:text-slate-400'
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" />
+                {v === 'timer'
+                  ? <AppLogoMark size={14} />
+                  : <Icon className="w-3.5 h-3.5" />
+                }
                 {view === v && (
                   <motion.div
                     layoutId="nav-active"

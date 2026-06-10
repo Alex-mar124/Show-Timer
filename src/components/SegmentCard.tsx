@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
-  DoorOpen, Home, Mic2, Coffee, Star, Flag, Circle,
-  Play, Square, Pause, RotateCcw, Pencil, Trash2, ChevronDown, ChevronUp, GripVertical,
+  Play, Square, Pause, RotateCcw, Pencil, Trash2,
+  ChevronDown, ChevronUp, GripVertical, Flag,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSortable } from '@dnd-kit/sortable';
@@ -13,26 +13,6 @@ import { useClock } from '../hooks/useClock';
 import { formatTime, formatDuration, formatOverUnder } from '../utils/time';
 import { scheduleIntervalNotification, getIntervalBackAtTime } from '../utils/notifications';
 import TimeEditModal from './TimeEditModal';
-
-const ICONS: Record<string, React.ElementType> = {
-  doors: DoorOpen,
-  house_open: Home,
-  act: Mic2,
-  interval: Coffee,
-  curtain_call: Star,
-  show_end: Flag,
-  custom: Circle,
-};
-
-const TYPE_COLORS: Record<string, string> = {
-  doors: 'bg-blue-400',
-  house_open: 'bg-sky-400',
-  act: 'bg-amber-400',
-  interval: 'bg-purple-400',
-  curtain_call: 'bg-yellow-300',
-  show_end: 'bg-green-400',
-  custom: 'bg-slate-400',
-};
 
 interface Props {
   showId: string;
@@ -72,7 +52,7 @@ function ExpectedMinInput({
         onChange={e => setRaw(e.target.value)}
         onBlur={commit}
         onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') commit(); }}
-        className="w-14 bg-show-surface border border-amber-500/50 rounded px-1.5 py-1 text-center text-sm font-mono tabular text-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-500/40"
+        className="w-14 bg-show-surface border border-amber-500/50 rounded px-1.5 py-1 text-center text-xs font-mono tabular text-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-500/40"
         style={{ appearance: 'textfield' }}
       />
     );
@@ -81,15 +61,14 @@ function ExpectedMinInput({
   return (
     <button
       onClick={() => { setRaw(value?.toString() ?? ''); setEditing(true); }}
-      className="group flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-dashed border-slate-700 hover:border-amber-500/40 hover:bg-amber-500/5 transition-all"
-      title="Click to edit expected duration"
+      className="group flex items-center gap-1 px-2 py-0.5 rounded border border-dashed border-slate-700 hover:border-amber-500/40 hover:bg-amber-500/5 transition-all"
+      title="Click to set expected duration"
     >
-      <span className="text-sm text-slate-500 group-hover:text-amber-400 transition-colors">Exp</span>
-      <span className="font-mono text-sm font-semibold text-slate-400 group-hover:text-amber-300 transition-colors tabular">
-        {value !== null ? `${value}` : '--'}
+      <span className="text-xs text-slate-600 group-hover:text-amber-500/70 transition-colors">Exp</span>
+      <span className="font-mono text-xs font-semibold text-slate-500 group-hover:text-amber-300 transition-colors tabular">
+        {value !== null ? value : '--'}
       </span>
-      <span className="text-sm text-slate-600 group-hover:text-amber-500/70 transition-colors">min</span>
-      <Pencil className="w-3 h-3 text-slate-700 group-hover:text-amber-500/60 transition-colors" />
+      <span className="text-xs text-slate-700 group-hover:text-amber-500/50 transition-colors">m</span>
     </button>
   );
 }
@@ -109,31 +88,27 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
     transition,
     zIndex: isDragging ? 50 : undefined,
   };
-  const status = getSegmentStatus(segment);
+
+  const status    = getSegmentStatus(segment);
   const elapsedMs = getElapsedMs(segment, now);
-  const isOnHold = status === 'active' && segment.holds.some(h => !h.endTime);
-  const [editModal, setEditModal] = useState<'actualStart' | 'actualEnd' | null>(null);
-  const [notesOpen, setNotesOpen] = useState(false);
+  const isOnHold  = status === 'active' && segment.holds.some(h => !h.endTime);
+  const isActive  = status === 'active';
+  const isComplete = status === 'complete';
+  const isShowEnd  = segment.type === 'show_end';
+
+  const [editModal,    setEditModal]    = useState<'actualStart' | 'actualEnd' | null>(null);
+  const [notesOpen,    setNotesOpen]    = useState(false);
   const [editingLabel, setEditingLabel] = useState(false);
-  const [labelVal, setLabelVal] = useState(segment.label);
+  const [labelVal,     setLabelVal]     = useState(segment.label);
 
-  const Icon = ICONS[segment.type] ?? Circle;
-
-  const expectedMs = segment.expectedDurationMinutes ? segment.expectedDurationMinutes * 60_000 : null;
+  const expectedMs  = segment.expectedDurationMinutes ? segment.expectedDurationMinutes * 60_000 : null;
   const overUnderMs = expectedMs !== null && status !== 'pending' ? elapsedMs - expectedMs : null;
 
-  const backAt = segment.type === 'interval' && status === 'active' ? getIntervalBackAtTime(segment) : null;
-  const backAtStr = backAt ? formatTime(backAt, timeFormat) : null;
+  const backAt      = segment.type === 'interval' && status === 'active' ? getIntervalBackAtTime(segment) : null;
+  const backAtStr   = backAt ? formatTime(backAt, timeFormat) : null;
   const countdownMs = backAt ? Math.max(0, backAt.getTime() - now.getTime()) : null;
 
-  const isShowEnd = segment.type === 'show_end';
-
   function handleStart() {
-    if (isShowEnd) {
-      // Show end is a single timestamp — mark actualStart only; treat as instant complete
-      startSegment(showId, segment.id);
-      return;
-    }
     startSegment(showId, segment.id);
     if (segment.type === 'interval') {
       scheduleIntervalNotification(
@@ -161,47 +136,49 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
     }
   }
 
-  const isActive = status === 'active';
-  const isComplete = status === 'complete';
+  // ── Cue light dot ────────────────────────────────────────────────────────────
+  const cueDot = isActive && isOnHold
+    ? 'bg-purple-500 animate-cue-hold'
+    : isActive
+    ? 'bg-amber-500 animate-cue-pulse'
+    : isComplete
+    ? 'bg-green-500/80'
+    : 'bg-show-border';
 
-  const cardBorder = isActive ? 'border-amber-500/40' : isComplete ? 'border-green-500/20' : 'border-show-border';
-  const cardBg = isActive ? 'bg-[#141a0a]' : 'bg-show-card';
-  const accentBar = isActive ? 'bg-amber-500' : isComplete ? 'bg-green-500' : 'bg-show-border';
+  // ── Row background ───────────────────────────────────────────────────────────
+  const rowBg = isActive
+    ? 'bg-show-card-alt'
+    : isComplete
+    ? 'bg-transparent'
+    : 'bg-transparent';
 
   return (
     <>
       <motion.div
         ref={setNodeRef}
         style={dragStyle}
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: isDragging ? 0.6 : 1, y: 0 }}
-        className={`relative rounded-xl border overflow-hidden transition-colors duration-300 ${cardBorder} ${cardBg} ${isActive ? 'glow-amber shadow-amber-glow' : 'shadow-card'}`}
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: isDragging ? 0.55 : 1, y: 0 }}
+        className={`relative border-b border-show-border last:border-b-0 transition-colors duration-300 ${rowBg}`}
       >
-        {/* Left accent bar */}
-        <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-xl transition-all duration-300 ${accentBar}`} />
+        <div className="px-4 py-3">
 
-        <div className="pl-4 pr-4 py-3">
-          {/* Main row */}
+          {/* ── Main row ────────────────────────────────────────────────────── */}
           <div className="flex items-center gap-2.5">
-            {/* Drag handle — listeners only here so buttons still work */}
+
+            {/* Cue light */}
+            <span className={`w-2.5 h-2.5 rounded-full shrink-0 transition-all duration-300 ${cueDot}`} />
+
+            {/* Drag handle */}
             <button
               {...attributes}
               {...listeners}
-              className="shrink-0 cursor-grab active:cursor-grabbing text-slate-700 hover:text-slate-500 transition-colors touch-none"
+              className="shrink-0 cursor-grab active:cursor-grabbing text-slate-800 hover:text-slate-600 transition-colors touch-none"
               tabIndex={-1}
               aria-label="Drag to reorder"
             >
               <GripVertical className="w-3.5 h-3.5" />
             </button>
-
-            {/* Icon */}
-            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-              isActive ? 'bg-amber-500/15 text-amber-400' :
-              isComplete ? 'bg-green-500/10 text-green-400' :
-              'bg-show-surface text-slate-500'
-            } transition-colors duration-300`}>
-              <Icon className="w-3.5 h-3.5" />
-            </div>
 
             {/* Label */}
             <div className="flex-1 min-w-0">
@@ -223,7 +200,9 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
                 <button
                   onDoubleClick={() => setEditingLabel(true)}
                   className={`text-left text-sm font-semibold transition-colors ${
-                    isActive ? 'text-amber-100' : isComplete ? 'text-slate-300' : 'text-slate-200'
+                    isActive   ? 'text-amber-100' :
+                    isComplete ? 'text-slate-400' :
+                                 'text-slate-200'
                   } hover:text-amber-300`}
                 >
                   {segment.label}
@@ -234,16 +213,15 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
             {/* Times */}
             <div className="flex items-center gap-2 shrink-0">
               {isShowEnd ? (
-                // Show End: single timestamp only
                 isComplete ? (
                   <button
                     onClick={() => setEditModal('actualStart')}
-                    className="font-mono text-base tabular text-green-400 hover:text-amber-300 transition-colors font-semibold"
+                    className="font-mono text-sm tabular text-green-400 hover:text-amber-300 transition-colors font-semibold"
                   >
                     {formatTime(segment.actualStart, timeFormat)}
                   </button>
                 ) : expectedStartAt ? (
-                  <span className="font-mono text-sm tabular font-medium text-slate-400 bg-show-surface border border-show-border px-2 py-0.5 rounded-md">
+                  <span className="font-mono text-xs tabular font-medium text-slate-500 bg-show-surface border border-show-border px-2 py-0.5 rounded-md">
                     Est. {formatTime(expectedStartAt, timeFormat)}
                   </span>
                 ) : null
@@ -272,7 +250,7 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
                       <span className="text-slate-700 text-xs">→</span>
                       <button
                         onClick={() => setEditModal('actualEnd')}
-                        className="font-mono text-sm tabular text-slate-300 hover:text-amber-300 transition-colors"
+                        className="font-mono text-sm tabular text-slate-400 hover:text-amber-300 transition-colors"
                       >
                         {formatTime(segment.actualEnd, timeFormat)}
                       </button>
@@ -286,9 +264,10 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
             </div>
           </div>
 
-          {/* Second row: expected + over/under + interval back-at + actions */}
-          <div className="flex items-center justify-between mt-2.5 pl-[38px]">
-            {/* Left: expected time editor + over/under + expected start hint */}
+          {/* ── Second row: expected / over-under / back-at / actions ────────── */}
+          <div className="flex items-center justify-between mt-2 pl-[46px]">
+
+            {/* Left: metadata pills */}
             <div className="flex items-center gap-2 flex-wrap">
               {!isShowEnd && (
                 <ExpectedMinInput
@@ -297,9 +276,8 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
                 />
               )}
 
-              {/* Expected start time for pending segments */}
               {status === 'pending' && !isShowEnd && expectedStartAt && !segment.actualStart && (
-                <span className="text-sm font-mono tabular font-medium text-slate-400 bg-show-surface border border-show-border px-2 py-0.5 rounded-md">
+                <span className="text-xs font-mono tabular font-medium text-slate-500 bg-show-surface border border-show-border px-2 py-0.5 rounded-md">
                   Est. {formatTime(expectedStartAt, timeFormat)}
                 </span>
               )}
@@ -318,7 +296,7 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
 
               {backAtStr && (
                 <span className="text-xs font-medium text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full">
-                  Back at {backAtStr}
+                  Back {backAtStr}
                   {countdownMs !== null && countdownMs > 0 && (
                     <span className="ml-1.5 opacity-70">({formatDuration(countdownMs)})</span>
                   )}
@@ -326,8 +304,8 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
               )}
 
               {isOnHold && (
-                <span className="text-xs font-semibold text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full animate-pulse">
-                  ON HOLD
+                <span className="text-xs font-bold text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full animate-pulse uppercase tracking-wide">
+                  Hold
                 </span>
               )}
             </div>
@@ -371,20 +349,14 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
                   onClick={handleStart}
                   className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                     isShowEnd
-                      ? 'bg-green-600 hover:bg-green-500 text-white shadow-green-glow'
+                      ? 'bg-green-600 hover:bg-green-500 text-white'
                       : 'bg-amber-500 hover:bg-amber-400 text-show-base shadow-amber-glow-sm'
                   }`}
                 >
                   {isShowEnd ? (
-                    <>
-                      <Flag className="w-3 h-3" />
-                      Mark End
-                    </>
+                    <><Flag className="w-3 h-3" />Mark End</>
                   ) : (
-                    <>
-                      <Play className="w-3 h-3 fill-current" />
-                      Start
-                    </>
+                    <><Play className="w-3 h-3 fill-current" />Start</>
                   )}
                 </button>
               )}
@@ -392,7 +364,7 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
               {isActive && (
                 <button
                   onClick={handleStop}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 text-xs font-bold transition-all"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-700 hover:border-slate-500 text-slate-300 hover:text-slate-100 text-xs font-bold transition-all"
                 >
                   <Square className="w-3 h-3 fill-current" />
                   End
@@ -402,7 +374,7 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
               {isComplete && (
                 <button
                   onClick={() => setEditModal('actualEnd')}
-                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-show-border hover:border-slate-600 text-slate-500 hover:text-slate-300 text-xs transition-colors"
+                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-show-border hover:border-slate-600 text-slate-600 hover:text-slate-300 text-xs transition-colors"
                 >
                   <Pencil className="w-3 h-3" />
                   Edit
@@ -411,7 +383,7 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
             </div>
           </div>
 
-          {/* Notes */}
+          {/* ── Notes ────────────────────────────────────────────────────────── */}
           <AnimatePresence>
             {notesOpen && (
               <motion.div
@@ -431,6 +403,7 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
               </motion.div>
             )}
           </AnimatePresence>
+
         </div>
       </motion.div>
 

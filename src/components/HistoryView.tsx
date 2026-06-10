@@ -1,4 +1,5 @@
-import { Theater, Clock, Trash2, ArrowRight } from 'lucide-react';
+import { Clock, Trash2, ArrowRight } from 'lucide-react';
+import AppLogo, { AppLogoMark } from './AppLogo';
 import { motion } from 'framer-motion';
 import { useShowStore } from '../store';
 import { formatDateShort, formatDuration, formatTime } from '../utils/time';
@@ -13,10 +14,10 @@ export default function HistoryView() {
 
   if (sorted.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-slate-600">
+      <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
-          <Theater className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">No shows yet</p>
+          <AppLogo size={52} className="mx-auto mb-3 opacity-60" />
+          <p className="text-sm text-slate-600">No shows yet</p>
           <p className="text-xs mt-1 text-slate-700">Create your first show to get started</p>
         </div>
       </div>
@@ -55,9 +56,9 @@ export default function HistoryView() {
 
               <div className="flex items-start gap-3">
                 <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                  isCurrent ? 'bg-amber-500/10 text-amber-400' : 'bg-show-surface text-slate-500'
+                  isCurrent ? 'bg-amber-500/10' : 'bg-show-surface'
                 }`}>
-                  <Theater className="w-4 h-4" />
+                  <AppLogoMark size={18} className={isCurrent ? 'opacity-100' : 'opacity-40'} />
                 </div>
 
                 <div className="flex-1 min-w-0">
