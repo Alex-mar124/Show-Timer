@@ -182,13 +182,21 @@ export default function HistoryView() {
                                     isCurrent ? 'bg-amber-500/5' : 'hover:bg-show-hover/20'
                                   } transition-colors`}
                                 >
-                                  <div className="flex items-center gap-1.5 w-16 shrink-0">
-                                    <span className="text-xs font-mono text-slate-500">#{si + 1}</span>
-                                    {show.performanceType && (
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <span className="text-xs font-mono text-slate-500 w-6">#{si + 1}</span>
+                                    {show.dayType && show.dayType !== 'performance' ? (
+                                      <span className={`text-[10px] px-1 py-0.5 rounded font-semibold ${
+                                        show.dayType === 'rehearsal'
+                                          ? 'text-teal-300 bg-teal-500/15'
+                                          : 'text-indigo-300 bg-indigo-500/15'
+                                      }`}>
+                                        {show.dayType === 'rehearsal' ? 'Reh' : 'Plot'}
+                                      </span>
+                                    ) : show.performanceType ? (
                                       <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1 py-0.5 rounded">
                                         {PERF_TYPE_LABEL[show.performanceType]}
                                       </span>
-                                    )}
+                                    ) : null}
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <p className="text-xs font-medium text-slate-300">{formatDateShort(show.date)}</p>

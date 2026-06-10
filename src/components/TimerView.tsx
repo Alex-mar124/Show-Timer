@@ -1,4 +1,4 @@
-import { Plus, ChevronDown, RefreshCw, ChevronRight } from 'lucide-react';
+import { Plus, ChevronDown, RefreshCw, ChevronRight, ChevronUp } from 'lucide-react';
 import AppLogo from './AppLogo';
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -17,7 +17,7 @@ import Clock from './Clock';
 import SegmentCard from './SegmentCard';
 import ActiveSegmentPanel from './ActiveSegmentPanel';
 import ReportPanel from './ReportPanel';
-import type { PerformanceType, SegmentType } from '../types';
+import type { PerformanceType, DayType, SegmentType } from '../types';
 import { getTotalRunningMs } from '../types';
 import { formatDuration, formatDurationShort } from '../utils/time';
 import { schedulePreShowNotifications } from '../utils/notifications';
@@ -100,10 +100,12 @@ export default function TimerView() {
     .reduce((acc, s) => acc + (s.expectedDurationMinutes ?? 0), 0);
 
   const addTypes: Array<{ type: SegmentType; label: string }> = [
-    { type: 'act', label: 'Add Act' },
-    { type: 'interval', label: 'Add Interval' },
-    { type: 'curtain_call', label: 'Add Curtain Call' },
-    { type: 'custom', label: 'Add Custom' },
+    { type: 'act',           label: 'Act' },
+    { type: 'interval',      label: 'Interval' },
+    { type: 'rehearsal',     label: 'Rehearsal' },
+    { type: 'plotting',      label: 'Plotting Session' },
+    { type: 'curtain_call',  label: 'Curtain Call' },
+    { type: 'custom',        label: 'Custom' },
   ];
 
   return (
@@ -260,46 +262,64 @@ export default function TimerView() {
               className="bg-transparent border-b border-show-border text-xs text-slate-500 placeholder-slate-700 focus:outline-none focus:border-amber-500/30 min-w-0 flex-1 max-w-[160px]"
             />
 
-            {/* Next Performance button — only shown when show is in a run */}
+            {/* Next Day button — shown when show is in an active run */}
             {currentRun && !currentRun.completedAt && (
               <div className="relative shrink-0">
-                {nextTypePickerOpen && currentRun.performanceType === null ? (
-                  <div className="absolute bottom-full right-0 mb-2 bg-show-card border border-show-border rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden z-20">
-                    <p className="px-3 pt-2.5 pb-1 text-[10px] text-slate-600 uppercase tracking-widest font-semibold">Performance type</p>
-                    {(['matinee', 'evening', 'other'] as PerformanceType[]).map(t => (
-                      <button
-                        key={t}
-                        onClick={() => {
-                          startNextPerformance(currentRun.id, t);
+                {nextTypePickerOpen && (
+                  <div className="absolute bottom-full right-0 mb-2 bg-show-card border border-show-border rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden z-20 min-w-[180px]">
+                    <p className="px-3 pt-2.5 pb-1 text-[10px] text-slate-600 uppercase tracking-widest font-semibold">Next day type</p>
+
+                    {/* Performance options */}
+                    {currentRun.performanceType === null ? (
+                      (['matinee', 'evening', 'other'] as PerformanceType[]).map(t => (
+                        <button key={t} onClick={() => {
+                          startNextPerformance(currentRun.id, t, 'performance');
                           setNextTypePickerOpen(false);
-                          addToast({ title: `Night ${(show.performanceNumber ?? 0) + 1} started`, message: PERF_TYPE_LABEL[t], type: 'success' });
-                        }}
-                        className="flex w-full items-center px-4 py-2 text-sm text-slate-300 hover:bg-show-hover hover:text-slate-100 transition-colors capitalize"
-                      >
-                        {PERF_TYPE_LABEL[t]}
+                          addToast({ title: `Night ${(show.performanceNumber ?? 0) + 1}`, message: PERF_TYPE_LABEL[t], type: 'success' });
+                        }} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:bg-show-hover hover:text-slate-100 transition-colors">
+                          <span className="w-2 h-2 rounded-full bg-amber-500/60 shrink-0" />
+                          {PERF_TYPE_LABEL[t]}
+                        </button>
+                      ))
+                    ) : (
+                      <button onClick={() => {
+                        startNextPerformance(currentRun.id, undefined, 'performance');
+                        setNextTypePickerOpen(false);
+                        addToast({ title: `Night ${(show.performanceNumber ?? 0) + 1} started`, message: currentRun.name, type: 'success' });
+                      }} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:bg-show-hover hover:text-slate-100 transition-colors">
+                        <span className="w-2 h-2 rounded-full bg-amber-500/60 shrink-0" />
+                        Performance
+                      </button>
+                    )}
+
+                    <div className="border-t border-show-border/50 my-1" />
+
+                    {([
+                      { dayType: 'rehearsal' as DayType, label: 'Rehearsal Day', color: 'bg-teal-500/60' },
+                      { dayType: 'plotting'  as DayType, label: 'Plotting Session', color: 'bg-indigo-500/60' },
+                    ]).map(opt => (
+                      <button key={opt.dayType} onClick={() => {
+                        startNextPerformance(currentRun.id, undefined, opt.dayType);
+                        setNextTypePickerOpen(false);
+                        addToast({ title: opt.label, message: currentRun.name, type: 'success' });
+                      }} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:bg-show-hover hover:text-slate-100 transition-colors">
+                        <span className={`w-2 h-2 rounded-full ${opt.color} shrink-0`} />
+                        {opt.label}
                       </button>
                     ))}
-                    <button
-                      onClick={() => setNextTypePickerOpen(false)}
-                      className="flex w-full items-center px-4 py-2 text-xs text-slate-600 hover:text-slate-400 transition-colors border-t border-show-border"
-                    >
+
+                    <button onClick={() => setNextTypePickerOpen(false)}
+                      className="flex w-full items-center px-4 py-2 text-xs text-slate-600 hover:text-slate-400 transition-colors border-t border-show-border">
                       Cancel
                     </button>
                   </div>
-                ) : null}
+                )}
                 <button
-                  onClick={() => {
-                    if (currentRun.performanceType === null) {
-                      setNextTypePickerOpen(v => !v);
-                    } else {
-                      startNextPerformance(currentRun.id);
-                      addToast({ title: `Night ${(show.performanceNumber ?? 0) + 1} started`, message: currentRun.name, type: 'success' });
-                    }
-                  }}
+                  onClick={() => setNextTypePickerOpen(v => !v)}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-semibold transition-all"
                 >
-                  Night {(show.performanceNumber ?? 0) + 1}
-                  <ChevronRight className="w-3 h-3" />
+                  Next Day
+                  {nextTypePickerOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                 </button>
               </div>
             )}

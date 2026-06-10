@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Show, Run, Segment, SegmentType, TemplateSegment, PerformanceType, CopyStrategy, AppSettings, Toast, View, TimeFormat, SessionState, SessionPeer, DiscoveredSession } from '../types';
+import type { Show, Run, Segment, SegmentType, TemplateSegment, PerformanceType, CopyStrategy, DayType, AppSettings, Toast, View, TimeFormat, SessionState, SessionPeer, DiscoveredSession } from '../types';
 import { nowISO, todayISO } from '../utils/time';
 
 // ── Session helpers (called from store actions) ───────────────────────────────
@@ -102,7 +102,7 @@ interface ShowStore {
     templateSegments: TemplateSegment[];
     firstShowDate: string; firstPerformanceType?: PerformanceType;
   }) => void;
-  startNextPerformance: (runId: string, performanceType?: PerformanceType) => void;
+  startNextPerformance: (runId: string, performanceType?: PerformanceType, dayType?: DayType) => void;
   completeRun: (runId: string) => void;
   deleteRun: (runId: string) => void;
   updateRunNotes: (runId: string, notes: string) => void;
@@ -399,6 +399,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
     const labelMap: Record<SegmentType, string> = {
       doors: 'Doors Open', house_open: 'House Open', act: 'Act',
       interval: 'Interval', curtain_call: 'Curtain Call', show_end: 'Show End', custom: 'Custom',
+      rehearsal: 'Rehearsal', plotting: 'Plotting Session',
     };
     set(s => {
       const show = s.shows.find(sh => sh.id === showId);
@@ -406,7 +407,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       const order = afterOrder !== undefined ? afterOrder + 0.5 : show.segments.length;
       const seg: Segment = {
         id: uid(), type, label: labelMap[type],
-        expectedDurationMinutes: type === 'act' ? 55 : type === 'interval' ? 20 : null,
+        expectedDurationMinutes: type === 'act' ? 55 : type === 'interval' ? 20 : type === 'rehearsal' ? 90 : type === 'plotting' ? 120 : null,
         actualStart: null, actualEnd: null, holds: [], notes: '', order,
       };
       const updated = [...show.segments, seg]
@@ -548,7 +549,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
     get().saveToStore();
   },
 
-  startNextPerformance: (runId, performanceType) => {
+  startNextPerformance: (runId, performanceType, dayType = 'performance') => {
     const { runs, shows } = get();
     const run = runs.find(r => r.id === runId);
     if (!run) return;
@@ -562,9 +563,36 @@ export const useShowStore = create<ShowStore>((set, get) => ({
     const localNext = new Date(ly, lm - 1, ld + 1);
     const nextDate = `${localNext.getFullYear()}-${String(localNext.getMonth() + 1).padStart(2, '0')}-${String(localNext.getDate()).padStart(2, '0')}`;
 
-    // Choose copy source
-    const sourceSegments: Array<{ type: SegmentType; label: string; expectedDurationMinutes: number | null; order: number }> =
-      run.copyStrategy === 'last_show'
+    function toISO(dateStr: string, timeStr: string): string | null {
+      if (!timeStr) return null;
+      const [h, m] = timeStr.split(':').map(Number);
+      const d = new Date(dateStr);
+      d.setHours(h, m, 0, 0);
+      return d.toISOString();
+    }
+
+    // Built-in segment templates for non-performance days
+    const rehearsalTemplate: Array<{ type: SegmentType; label: string; expectedDurationMinutes: number | null; order: number }> = [
+      { type: 'custom',    label: 'Pre-Rehearsal',    expectedDurationMinutes: 30,  order: 0 },
+      { type: 'rehearsal', label: 'Act 1 Rehearsal',  expectedDurationMinutes: 90,  order: 1 },
+      { type: 'interval',  label: 'Break',            expectedDurationMinutes: 15,  order: 2 },
+      { type: 'rehearsal', label: 'Act 2 Rehearsal',  expectedDurationMinutes: 90,  order: 3 },
+      { type: 'show_end',  label: 'Notes',            expectedDurationMinutes: null, order: 4 },
+    ];
+    const plottingTemplate: Array<{ type: SegmentType; label: string; expectedDurationMinutes: number | null; order: number }> = [
+      { type: 'plotting',  label: 'Rig & Focus',      expectedDurationMinutes: 120, order: 0 },
+      { type: 'interval',  label: 'Break',            expectedDurationMinutes: 15,  order: 1 },
+      { type: 'plotting',  label: 'Plotting Session', expectedDurationMinutes: 180, order: 2 },
+      { type: 'interval',  label: 'Break',            expectedDurationMinutes: 15,  order: 3 },
+      { type: 'plotting',  label: 'Notes & Fixes',    expectedDurationMinutes: 60,  order: 4 },
+      { type: 'show_end',  label: 'End',              expectedDurationMinutes: null, order: 5 },
+    ];
+
+    // Choose copy source based on dayType
+    const sourceSegments =
+      dayType === 'rehearsal' ? rehearsalTemplate
+      : dayType === 'plotting' ? plottingTemplate
+      : run.copyStrategy === 'last_show'
         ? [...lastShow.segments].sort((a, b) => a.order - b.order)
         : [...run.templateSegments].sort((a, b) => a.order - b.order);
 
@@ -580,16 +608,10 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       order: s.order,
     }));
 
-    function toISO(dateStr: string, timeStr: string): string | null {
-      if (!timeStr) return null;
-      const [h, m] = timeStr.split(':').map(Number);
-      const d = new Date(dateStr);
-      d.setHours(h, m, 0, 0);
-      return d.toISOString();
-    }
-
     const perfNumber = run.showIds.length + 1;
     const showId = uid();
+
+    const dayLabel = dayType === 'rehearsal' ? 'Rehearsal' : dayType === 'plotting' ? 'Plotting' : `Night ${perfNumber}`;
 
     // Carry forward tech notes from last show
     const techNotes = lastShow.techNotes
@@ -598,7 +620,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
 
     const newShow: Show = {
       id: showId,
-      title: `Night ${perfNumber}`,
+      title: dayLabel,
       production: run.production,
       date: nextDate,
       plannedStartTime: toISO(nextDate, run.defaultShowStartTime),
@@ -610,7 +632,8 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       completedAt: null,
       runId,
       performanceNumber: perfNumber,
-      performanceType: performanceType ?? run.performanceType ?? undefined,
+      performanceType: dayType === 'performance' ? (performanceType ?? run.performanceType ?? undefined) : undefined,
+      dayType,
     };
 
     set(s => ({

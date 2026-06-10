@@ -12,10 +12,12 @@ const TYPE_LABELS: Record<SegmentType, string> = {
   doors: 'Doors Open', house_open: 'House Open', act: 'Act',
   interval: 'Interval', curtain_call: 'Curtain Call',
   show_end: 'Show End', custom: 'Custom',
+  rehearsal: 'Rehearsal', plotting: 'Plotting Session',
 };
 
 const DEFAULT_DURATIONS: Partial<Record<SegmentType, number>> = {
   doors: 30, act: 55, interval: 20, curtain_call: null as unknown as number,
+  rehearsal: 90, plotting: 120,
 };
 
 function defaultTemplateSegments(): TemplateSegment[] {

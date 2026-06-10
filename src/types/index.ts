@@ -64,7 +64,11 @@ export type SegmentType =
   | 'interval'
   | 'curtain_call'
   | 'show_end'
-  | 'custom';
+  | 'custom'
+  | 'rehearsal'
+  | 'plotting';
+
+export type DayType = 'performance' | 'rehearsal' | 'plotting';
 
 export type SegmentStatus = 'pending' | 'active' | 'complete';
 
@@ -102,6 +106,7 @@ export interface Show {
   runId?: string;
   performanceNumber?: number;
   performanceType?: PerformanceType;
+  dayType?: DayType;
 }
 
 export interface AppSettings {

@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { History, Settings, PanelRight, Plus, Timer, Layers } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { History, Settings, PanelRight, Plus, Timer, Layers, ChevronDown } from 'lucide-react';
 import AppLogo, { AppLogoMark } from './components/AppLogo';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useShowStore } from './store';
@@ -22,6 +22,20 @@ const NAV_ITEMS: Array<{ view: View; Icon: React.ElementType; label: string }> =
 ];
 
 export default function App() {
+  const [newMenuOpen, setNewMenuOpen] = useState(false);
+  const newMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close new-menu on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (newMenuRef.current && !newMenuRef.current.contains(e.target as Node)) {
+        setNewMenuOpen(false);
+      }
+    }
+    if (newMenuOpen) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [newMenuOpen]);
+
   const {
     initialize, initialized,
     view, setView,
@@ -101,11 +115,11 @@ export default function App() {
   return (
     <div className="h-full bg-show-base flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="shrink-0 flex items-center px-4 h-13 border-b border-show-border bg-show-surface" style={{ height: '52px' }}>
+      <header className="shrink-0 flex items-center px-4 gap-3 border-b border-show-border bg-show-surface" style={{ height: '60px' }}>
 
-        {/* Brand — logo + two-tone name */}
-        <div className="flex items-center gap-2 shrink-0 min-w-0" style={{ width: 148 }}>
-          <AppLogo size={30} className="shrink-0" />
+        {/* Brand */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          <AppLogo size={32} className="shrink-0" />
           <div className="flex flex-col leading-none">
             <span className="font-mono text-[9px] tracking-[0.22em] text-slate-600 uppercase">Show</span>
             <span className="font-mono text-[11px] tracking-[0.18em] text-amber-400 uppercase font-bold">Timer</span>
@@ -113,12 +127,9 @@ export default function App() {
         </div>
 
         {/* Center: current show info */}
-        <div className="flex-1 flex items-center justify-center min-w-0 px-3">
+        <div className="flex-1 flex items-center justify-center min-w-0 px-2">
           {currentShow ? (
-            <button
-              onClick={() => setView('timer')}
-              className="text-center group min-w-0 max-w-xs"
-            >
+            <button onClick={() => setView('timer')} className="text-center group min-w-0 max-w-xs">
               <p className="text-sm font-semibold text-slate-200 leading-tight truncate group-hover:text-amber-300 transition-colors">
                 {currentShow.production || currentShow.title}
               </p>
@@ -129,37 +140,32 @@ export default function App() {
               </p>
             </button>
           ) : (
-            <button
-              onClick={() => setNewShowModalOpen(true)}
-              className="text-xs text-slate-700 hover:text-amber-400 transition-colors"
-            >
+            <button onClick={() => setNewMenuOpen(true)}
+              className="text-xs text-slate-700 hover:text-amber-400 transition-colors">
               No active show — create one
             </button>
           )}
         </div>
 
-        {/* Right: actions */}
-        <div className="flex items-center gap-1 shrink-0" style={{ width: 148, justifyContent: 'flex-end' }}>
+        {/* Right: nav + actions */}
+        <div className="flex items-center gap-1.5 shrink-0">
 
-          {/* Nav tabs */}
-          <div className="flex items-center bg-show-card rounded-lg border border-show-border p-0.5 mr-1.5">
+          {/* Nav tabs with labels */}
+          <div className="flex items-center bg-show-card rounded-xl border border-show-border p-1 gap-0.5">
             {NAV_ITEMS.map(({ view: v, Icon, label }) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
-                title={label}
-                className={`relative w-8 h-7 rounded-md flex items-center justify-center transition-all ${
-                  view === v ? 'text-amber-400' : 'text-slate-600 hover:text-slate-400'
+                className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  view === v ? 'text-amber-400' : 'text-slate-600 hover:text-slate-300'
                 }`}
               >
-                {v === 'timer'
-                  ? <AppLogoMark size={13} />
-                  : <Icon className="w-3.5 h-3.5" />
-                }
+                {v === 'timer' ? <AppLogoMark size={12} /> : <Icon className="w-3.5 h-3.5" />}
+                <span>{label}</span>
                 {view === v && (
                   <motion.div
                     layoutId="nav-active"
-                    className="absolute inset-0 rounded-md bg-amber-500/10 border border-amber-500/20"
+                    className="absolute inset-0 rounded-lg bg-amber-500/10 border border-amber-500/20"
                     transition={{ type: 'spring', damping: 28, stiffness: 350 }}
                   />
                 )}
@@ -167,41 +173,70 @@ export default function App() {
             ))}
           </div>
 
-          {/* Report toggle */}
+          {/* Report panel toggle */}
           {view === 'timer' && currentShow && (
             <button
               onClick={() => setReportOpen(!reportOpen)}
               title="Toggle report panel"
-              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all border ${
+              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-all border ${
                 reportOpen
                   ? 'border-amber-500/30 bg-amber-500/10 text-amber-400'
-                  : 'border-show-border text-slate-600 hover:text-slate-300'
+                  : 'border-show-border text-slate-600 hover:text-slate-300 hover:border-slate-600'
               }`}
             >
               <PanelRight className="w-3.5 h-3.5" />
+              <span>Report</span>
             </button>
           )}
 
-          {/* Sync */}
+          {/* Sync button */}
           <SessionButton />
 
-          {/* New production run */}
-          <button
-            onClick={() => setNewRunModalOpen(true)}
-            title="New production run"
-            className="w-7 h-7 rounded-lg border border-show-border hover:border-amber-500/30 flex items-center justify-center text-slate-600 hover:text-amber-400 transition-all"
-          >
-            <Layers className="w-3.5 h-3.5" />
-          </button>
+          {/* New — combined dropdown */}
+          <div className="relative" ref={newMenuRef}>
+            <button
+              onClick={() => setNewMenuOpen(v => !v)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-semibold transition-all"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>New</span>
+              <ChevronDown className={`w-3 h-3 transition-transform ${newMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
 
-          {/* New standalone show */}
-          <button
-            onClick={() => setNewShowModalOpen(true)}
-            title="New standalone show"
-            className="w-7 h-7 rounded-lg border border-show-border hover:border-amber-500/30 flex items-center justify-center text-slate-600 hover:text-amber-400 transition-all"
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </button>
+            <AnimatePresence>
+              {newMenuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                  transition={{ duration: 0.12 }}
+                  className="absolute right-0 top-full mt-1.5 z-30 bg-show-card border border-show-border rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden min-w-[170px]"
+                >
+                  <button
+                    onClick={() => { setNewShowModalOpen(true); setNewMenuOpen(false); }}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-300 hover:bg-show-hover hover:text-slate-100 transition-colors"
+                  >
+                    <Plus className="w-4 h-4 text-slate-500 shrink-0" />
+                    <div className="text-left">
+                      <p className="font-medium text-sm">Single Show</p>
+                      <p className="text-[11px] text-slate-600">One-off performance</p>
+                    </div>
+                  </button>
+                  <div className="h-px bg-show-border mx-3" />
+                  <button
+                    onClick={() => { setNewRunModalOpen(true); setNewMenuOpen(false); }}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-300 hover:bg-show-hover hover:text-slate-100 transition-colors"
+                  >
+                    <Layers className="w-4 h-4 text-amber-500/70 shrink-0" />
+                    <div className="text-left">
+                      <p className="font-medium text-sm">Production Run</p>
+                      <p className="text-[11px] text-slate-600">Multi-night run</p>
+                    </div>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
 
       </header>
