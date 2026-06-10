@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { History, Settings, PanelRight, Plus, Timer } from 'lucide-react';
+import { History, Settings, PanelRight, Plus, Timer, Layers } from 'lucide-react';
 import AppLogo, { AppLogoMark } from './components/AppLogo';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useShowStore } from './store';
@@ -185,7 +185,16 @@ export default function App() {
           {/* Sync */}
           <SessionButton />
 
-          {/* New show / new run */}
+          {/* New production run */}
+          <button
+            onClick={() => setNewRunModalOpen(true)}
+            title="New production run"
+            className="w-7 h-7 rounded-lg border border-show-border hover:border-amber-500/30 flex items-center justify-center text-slate-600 hover:text-amber-400 transition-all"
+          >
+            <Layers className="w-3.5 h-3.5" />
+          </button>
+
+          {/* New standalone show */}
           <button
             onClick={() => setNewShowModalOpen(true)}
             title="New standalone show"
