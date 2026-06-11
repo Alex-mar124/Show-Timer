@@ -71,10 +71,12 @@ Migration: `normalizeShow()` in `loadTauriStore()` fills new fields on old saved
 - ✅ `createShow`/`createRun`/`startNextPerformance` initialise People fields via `defaultPeople()`.
 - ✅ New timing helpers `getShowTimeWindowMs` / `getNonShowTimeMs` (doors→finish billing).
 
-### Phase 2 — 12/24h time editing everywhere ⬜
-- ⬜ Reusable `<TimePicker format>` component (HH:MM spinner + AM/PM toggle in 12h).
-- ⬜ Rewrite `TimeEditModal` to use it (currently hard 0–23).
-- ⬜ Replace both `<input type="time">` in `SegmentCard` planned start/end (24h-only + macOS WKWebView no-render).
+### Phase 2 — 12/24h time editing everywhere ✅
+- ✅ Reusable `TimePicker.tsx`: `BigTimePicker` (modal HH:MM:SS), `InlineHmPicker` (HH:MM), `CompactTimePicker` (set/clear wrapper); AM/PM toggle in 12h, hidden in 24h. `to12h`/`from12h` helpers.
+- ✅ `TimeEditModal` uses `BigTimePicker` (was hard 0–23).
+- ✅ `SegmentCard` planned start/end use `InlineHmPicker` (removed both `type="time"`).
+- ✅ `ShowSetupModal` + `RunSetupModal` use shared `CompactTimePicker` (removed remaining `type="time"`).
+- ✅ Verified in browser: 12h shows AM/PM (07:30 PM), 24h shows 19:30 with no toggle.
 
 ### Phase 3 — Bidirectional duration ⇄ planned-end ⬜
 - ⬜ `reconcileSchedule()` in store: edit duration → recompute planned end; edit planned end → recompute duration; edit planned start → hold duration, shift end.

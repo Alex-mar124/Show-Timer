@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { X, Clock, RotateCcw, ChevronUp, ChevronDown } from 'lucide-react';
+import { X, Clock, RotateCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { format } from 'date-fns';
 import { useShowStore } from '../store';
 import type { Segment } from '../types';
+import { BigTimePicker } from './TimePicker';
 
 interface Props {
   showId: string;
@@ -12,57 +12,9 @@ interface Props {
   onClose: () => void;
 }
 
-// ── Single HH / MM / SS spinner unit ─────────────────────────────────────────
-function TimeUnit({
-  value, max, onChange,
-}: { value: number; max: number; onChange: (n: number) => void }) {
-  function inc() { onChange((value + 1) % (max + 1)); }
-  function dec() { onChange((value - 1 + max + 1) % (max + 1)); }
-
-  function handleKey(e: React.KeyboardEvent) {
-    if (e.key === 'ArrowUp') { e.preventDefault(); inc(); }
-    if (e.key === 'ArrowDown') { e.preventDefault(); dec(); }
-  }
-
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const n = parseInt(e.target.value, 10);
-    if (!isNaN(n) && n >= 0 && n <= max) onChange(n);
-  }
-
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <button
-        type="button"
-        onClick={inc}
-        className="w-10 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
-      >
-        <ChevronUp className="w-4 h-4" />
-      </button>
-      <input
-        type="number"
-        min={0}
-        max={max}
-        value={value}
-        onChange={handleChange}
-        onKeyDown={handleKey}
-        className="w-14 h-14 text-center font-mono text-3xl font-light bg-show-surface border border-show-border rounded-xl text-amber-400 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all
-          [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
-          selection:bg-amber-500/30 selection:text-amber-200"
-      />
-      <button
-        type="button"
-        onClick={dec}
-        className="w-10 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
-      >
-        <ChevronDown className="w-4 h-4" />
-      </button>
-    </div>
-  );
-}
-
 // ── Modal ─────────────────────────────────────────────────────────────────────
 export default function TimeEditModal({ showId, segment, field, onClose }: Props) {
-  const { setSegmentTime } = useShowStore();
+  const { setSegmentTime, settings } = useShowStore();
   const current = segment[field] ? new Date(segment[field]!) : new Date();
 
   const [hours,   setHours]   = useState(current.getHours());
@@ -127,13 +79,15 @@ export default function TimeEditModal({ showId, segment, field, onClose }: Props
 
             <div className="p-5 space-y-5">
               {/* Spinner */}
-              <div className="flex items-center justify-center gap-2 py-1">
-                <TimeUnit value={hours}   max={23} onChange={setHours} />
-                <span className="text-3xl font-light text-amber-500/60 pb-0.5 select-none">:</span>
-                <TimeUnit value={minutes} max={59} onChange={setMinutes} />
-                <span className="text-3xl font-light text-amber-500/60 pb-0.5 select-none">:</span>
-                <TimeUnit value={seconds} max={59} onChange={setSeconds} />
-              </div>
+              <BigTimePicker
+                hours={hours}
+                minutes={minutes}
+                seconds={seconds}
+                format={settings.timeFormat}
+                onChange={({ hours: h, minutes: m, seconds: s }) => {
+                  setHours(h); setMinutes(m); setSeconds(s);
+                }}
+              />
 
               {/* Use Now */}
               <button

@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { X, ChevronUp, ChevronDown, Clock } from 'lucide-react';
+import { X } from 'lucide-react';
 import AppLogo from './AppLogo';
 import { useShowStore } from '../store';
 import { todayISO } from '../utils/time';
 import { schedulePreShowNotifications } from '../utils/notifications';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CompactTimePicker } from './TimePicker';
 
 function toISO(dateStr: string, timeStr: string): string | null {
   if (!timeStr) return null;
@@ -12,86 +13,6 @@ function toISO(dateStr: string, timeStr: string): string | null {
   const d = new Date(dateStr);
   d.setHours(h, m, 0, 0);
   return d.toISOString();
-}
-
-// ── Compact HH:MM spinner used inside the form ────────────────────────────────
-function SpinUnit({
-  value, max, onChange,
-}: { value: number; max: number; onChange: (n: number) => void }) {
-  function inc() { onChange((value + 1) % (max + 1)); }
-  function dec() { onChange((value - 1 + max + 1) % (max + 1)); }
-
-  function handleKey(e: React.KeyboardEvent) {
-    if (e.key === 'ArrowUp') { e.preventDefault(); inc(); }
-    if (e.key === 'ArrowDown') { e.preventDefault(); dec(); }
-  }
-
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const n = parseInt(e.target.value, 10);
-    if (!isNaN(n) && n >= 0 && n <= max) onChange(n);
-  }
-
-  return (
-    <div className="flex flex-col items-center gap-0.5">
-      <button type="button" onClick={inc}
-        className="w-8 h-5 flex items-center justify-center rounded text-slate-500 hover:text-amber-400 hover:bg-amber-500/10 transition-colors">
-        <ChevronUp className="w-3 h-3" />
-      </button>
-      <input
-        type="number" min={0} max={max}
-        value={String(value).padStart(2, '0')}
-        onChange={handleChange}
-        onKeyDown={handleKey}
-        className="w-10 h-9 text-center font-mono text-lg bg-show-surface border border-show-border rounded-lg text-amber-400
-          focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all
-          [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
-          selection:bg-amber-500/30 selection:text-amber-200"
-      />
-      <button type="button" onClick={dec}
-        className="w-8 h-5 flex items-center justify-center rounded text-slate-500 hover:text-amber-400 hover:bg-amber-500/10 transition-colors">
-        <ChevronDown className="w-3 h-3" />
-      </button>
-    </div>
-  );
-}
-
-function CompactTimePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const enabled = value !== '';
-  const parts = value ? value.split(':').map(Number) : [19, 30];
-  const [h, m] = parts;
-
-  function enable() { onChange('19:30'); }
-  function clear() { onChange(''); }
-  function setH(n: number) { onChange(`${String(n).padStart(2, '0')}:${String(m).padStart(2, '0')}`); }
-  function setM(n: number) { onChange(`${String(h).padStart(2, '0')}:${String(n).padStart(2, '0')}`); }
-
-  if (!enabled) {
-    return (
-      <button
-        type="button"
-        onClick={enable}
-        className="w-full flex items-center gap-2 px-3 py-2.5 bg-show-surface border border-show-border border-dashed rounded-lg text-slate-600 hover:text-slate-400 hover:border-slate-600 text-sm transition-colors"
-      >
-        <Clock className="w-3.5 h-3.5" />
-        Set time
-      </button>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-1.5 px-2 py-1 bg-show-surface border border-show-border rounded-lg">
-      <SpinUnit value={h} max={23} onChange={setH} />
-      <span className="text-lg font-light text-amber-500/60 select-none pb-0.5">:</span>
-      <SpinUnit value={m} max={59} onChange={setM} />
-      <button
-        type="button"
-        onClick={clear}
-        className="ml-auto self-center w-5 h-5 flex items-center justify-center rounded text-slate-600 hover:text-slate-300 hover:bg-show-hover transition-colors"
-      >
-        <X className="w-3 h-3" />
-      </button>
-    </div>
-  );
 }
 
 export default function ShowSetupModal() {
@@ -213,13 +134,13 @@ export default function ShowSetupModal() {
                     <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1.5">
                       Doors Open
                     </label>
-                    <CompactTimePicker value={doorsTime} onChange={setDoorsTime} />
+                    <CompactTimePicker value={doorsTime} format={settings.timeFormat} onChange={setDoorsTime} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1.5">
                       Show Start
                     </label>
-                    <CompactTimePicker value={showStartTime} onChange={setShowStartTime} />
+                    <CompactTimePicker value={showStartTime} format={settings.timeFormat} onChange={setShowStartTime} />
                   </div>
                 </div>
 

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import AppLogo from './AppLogo';
 import { useShowStore } from '../store';
 import { todayISO } from '../utils/time';
+import { CompactTimePicker } from './TimePicker';
 import type { SegmentType, TemplateSegment, PerformanceType, CopyStrategy, DayType } from '../types';
 
 function uid() { return crypto.randomUUID(); }
@@ -105,7 +106,7 @@ function SegmentRow({ seg, onUpdate, onRemove, canRemove }: SegmentRowProps) {
 }
 
 export default function RunSetupModal() {
-  const { newRunModalOpen, setNewRunModalOpen, createRun } = useShowStore();
+  const { newRunModalOpen, setNewRunModalOpen, createRun, settings } = useShowStore();
 
   const [production, setProduction] = useState('');
   const [name, setName] = useState('');
@@ -314,23 +315,13 @@ export default function RunSetupModal() {
                         <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1.5">
                           Default Doors Time
                         </label>
-                        <input
-                          type="time"
-                          value={doorsTime}
-                          onChange={e => setDoorsTime(e.target.value)}
-                          className="w-full bg-show-surface border border-show-border rounded-lg px-3 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500/50 transition-all text-sm"
-                        />
+                        <CompactTimePicker value={doorsTime} format={settings.timeFormat} onChange={setDoorsTime} />
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1.5">
                           Default Show Start
                         </label>
-                        <input
-                          type="time"
-                          value={showStartTime}
-                          onChange={e => setShowStartTime(e.target.value)}
-                          className="w-full bg-show-surface border border-show-border rounded-lg px-3 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500/50 transition-all text-sm"
-                        />
+                        <CompactTimePicker value={showStartTime} format={settings.timeFormat} onChange={setShowStartTime} />
                       </div>
                     </div>
                   </div>

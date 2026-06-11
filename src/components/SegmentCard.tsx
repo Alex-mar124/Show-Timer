@@ -13,6 +13,7 @@ import { useClock } from '../hooks/useClock';
 import { formatTime, formatDuration, formatOverUnder } from '../utils/time';
 import { scheduleIntervalNotification, getIntervalBackAtTime } from '../utils/notifications';
 import TimeEditModal from './TimeEditModal';
+import { InlineHmPicker } from './TimePicker';
 
 interface Props {
   showId: string;
@@ -289,23 +290,25 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
 
           {/* ── Planned schedule row (qualifying types only) ─────────────────── */}
           {showSchedule && (
-            <div className="flex items-center gap-2 mt-2 pl-[46px]">
+            <div className="flex items-center gap-2 mt-2 pl-[46px] flex-wrap">
               <Clock className="w-3 h-3 text-slate-600 shrink-0" />
-              <input
-                type="time"
-                value={segment.plannedStart ?? ''}
-                onChange={e => updateSegmentSchedule(showId, segment.id, 'plannedStart', e.target.value || null)}
-                className="bg-show-surface border border-show-border rounded-md px-2 py-1 text-xs text-slate-300 focus:outline-none focus:border-amber-500/50 transition-colors w-[90px]"
-                title="Planned start time"
-              />
+              <div className="flex items-center gap-1">
+                <span className="text-[9px] text-slate-600 uppercase tracking-wider mr-0.5">Start</span>
+                <InlineHmPicker
+                  value={segment.plannedStart ?? ''}
+                  format={timeFormat}
+                  onChange={v => updateSegmentSchedule(showId, segment.id, 'plannedStart', v || null)}
+                />
+              </div>
               <span className="text-slate-700 text-xs">→</span>
-              <input
-                type="time"
-                value={segment.plannedEnd ?? ''}
-                onChange={e => updateSegmentSchedule(showId, segment.id, 'plannedEnd', e.target.value || null)}
-                className="bg-show-surface border border-show-border rounded-md px-2 py-1 text-xs text-slate-300 focus:outline-none focus:border-amber-500/50 transition-colors w-[90px]"
-                title="Planned end time"
-              />
+              <div className="flex items-center gap-1">
+                <span className="text-[9px] text-slate-600 uppercase tracking-wider mr-0.5">End</span>
+                <InlineHmPicker
+                  value={segment.plannedEnd ?? ''}
+                  format={timeFormat}
+                  onChange={v => updateSegmentSchedule(showId, segment.id, 'plannedEnd', v || null)}
+                />
+              </div>
               {segment.plannedStart && segment.plannedEnd && (() => {
                 const [sh, sm] = segment.plannedStart.split(':').map(Number);
                 const [eh, em] = segment.plannedEnd.split(':').map(Number);
