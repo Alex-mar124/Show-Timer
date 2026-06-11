@@ -1,5 +1,6 @@
-import { Plus, ChevronDown, RefreshCw, ChevronRight, ChevronUp, Flag } from 'lucide-react';
+import { Plus, ChevronDown, RefreshCw, ChevronRight, ChevronUp, Flag, Users, ListChecks } from 'lucide-react';
 import AppLogo from './AppLogo';
+import PeoplePanel from './PeoplePanel';
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -44,6 +45,7 @@ export default function TimerView() {
   const now = useClock();
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [nextTypePickerOpen, setNextTypePickerOpen] = useState(false);
+  const [showTab, setShowTab] = useState<'runsheet' | 'people'>('runsheet');
 
   const show = shows.find(s => s.id === currentShowId) ?? null;
   const currentRun = show?.runId ? (runs.find(r => r.id === show.runId) ?? null) : null;
@@ -194,6 +196,35 @@ export default function TimerView() {
           </div>
         </div>
 
+        {/* Within-show tabs: Run Sheet · People */}
+        <div className="px-6 pb-3">
+          <div className="inline-flex items-center bg-show-card rounded-xl border border-show-border p-1 gap-0.5">
+            {([
+              { id: 'runsheet' as const, Icon: ListChecks, label: 'Run Sheet' },
+              { id: 'people'   as const, Icon: Users,      label: 'People' },
+            ]).map(({ id, Icon, label }) => (
+              <button
+                key={id}
+                onClick={() => setShowTab(id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  showTab === id ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400' : 'text-slate-600 hover:text-slate-300'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {label}
+                {id === 'people' && show.staff.length > 0 && (
+                  <span className="ml-0.5 text-[10px] font-bold text-amber-400/80">{show.staff.length}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {showTab === 'people' && (
+          <PeoplePanel show={show} timeFormat={settings.timeFormat} />
+        )}
+
+        {showTab === 'runsheet' && (<>
         {/* Active segment overview */}
         <ActiveSegmentPanel
           show={show}
@@ -413,6 +444,7 @@ export default function TimerView() {
             )}
           </div>
         </div>
+        </>)}
       </div>
 
       {/* Report panel */}

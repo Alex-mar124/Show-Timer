@@ -81,9 +81,11 @@ Migration: `normalizeShow()` in `loadTauriStore()` fills new fields on old saved
 ### Phase 3 — Bidirectional duration ⇄ planned-end ✅
 - ✅ `reconcileSchedule(seg, edited)` in store + `hmToMin`/`minToHm` (overnight-wrapping). Edit duration → recompute end (or start); edit planned end → recompute duration (or start); edit planned start → hold duration, shift end (or derive duration). Wired into `updateSegmentExpected` and `updateSegmentSchedule` (clearing a field skips derivation).
 
-### Phase 4 — People face ⬜
-- ⬜ `PeoplePanel` — staff table (add/edit/remove rows; name, role, arrival/leave via TimePicker) + client arrival/departure.
-- ⬜ Mounted as the **People** tab.
+### Phase 4 — People face ✅
+- ✅ `PeoplePanel` — client access (arrival/departure + on-site duration) and staff table (name, role, in/out, computed hours, add/remove).
+- ✅ Generic `TimestampModal` (BigTimePicker-based, anchors HH:MM:SS to show date, Use-Current-Time / Clear) used by every staff & client time cell.
+- ✅ Within-show **Run Sheet · People** tab strip in `TimerView` (people count badge). Report still the existing side panel until Phase 5/7.
+- ✅ Verified in browser: tabs switch, staff rows add, timestamp modal saves, hours compute.
 
 ### Phase 5 — Report overhaul ⬜
 - ⬜ Redesign `pdf.ts`: header/date · client-access block · staff table · show-timing table (NO +/− column) · totals (show vs non-show) · tech-comments box · client-comments box · signature line.
