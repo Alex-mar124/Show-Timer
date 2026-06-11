@@ -1,6 +1,7 @@
-import { Plus, ChevronDown, RefreshCw, ChevronRight, ChevronUp, Flag, Users, ListChecks } from 'lucide-react';
+import { Plus, ChevronDown, RefreshCw, ChevronRight, ChevronUp, Flag, Users, ListChecks, FileText } from 'lucide-react';
 import AppLogo from './AppLogo';
 import PeoplePanel from './PeoplePanel';
+import ReportTab from './ReportTab';
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -17,7 +18,6 @@ import { useClock } from '../hooks/useClock';
 import Clock from './Clock';
 import SegmentCard from './SegmentCard';
 import ActiveSegmentPanel from './ActiveSegmentPanel';
-import ReportPanel from './ReportPanel';
 import type { PerformanceType, DayType, SegmentType } from '../types';
 import { getTotalRunningMs, getShowTimeMs, getProductionSegmentMs, SHOW_CORE_TYPES, PRODUCTION_TYPES } from '../types';
 import { formatDuration, formatDurationShort } from '../utils/time';
@@ -37,7 +37,7 @@ const DAY_TYPE_STYLE: Record<string, { label: string; cls: string }> = {
 
 export default function TimerView() {
   const {
-    shows, runs, currentShowId, settings, reportOpen,
+    shows, runs, currentShowId, settings,
     setNewShowModalOpen, setNewRunModalOpen,
     addSegment, addShowFinish, updateShowNotes, reorderSegments,
     syncTemplateFromShow, startNextPerformance, addToast,
@@ -45,10 +45,11 @@ export default function TimerView() {
   const now = useClock();
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [nextTypePickerOpen, setNextTypePickerOpen] = useState(false);
-  const [showTab, setShowTab] = useState<'runsheet' | 'people'>('runsheet');
+  const [showTab, setShowTab] = useState<'runsheet' | 'people' | 'report'>('runsheet');
 
   const show = shows.find(s => s.id === currentShowId) ?? null;
   const currentRun = show?.runId ? (runs.find(r => r.id === show.runId) ?? null) : null;
+  const runShows = currentRun ? shows.filter(s => s.runId === currentRun.id) : [];
 
   // All hooks must be called before any conditional return
   const expectedStarts = useMemo(
@@ -202,6 +203,7 @@ export default function TimerView() {
             {([
               { id: 'runsheet' as const, Icon: ListChecks, label: 'Run Sheet' },
               { id: 'people'   as const, Icon: Users,      label: 'People' },
+              { id: 'report'   as const, Icon: FileText,   label: 'Report' },
             ]).map(({ id, Icon, label }) => (
               <button
                 key={id}
@@ -222,6 +224,10 @@ export default function TimerView() {
 
         {showTab === 'people' && (
           <PeoplePanel show={show} timeFormat={settings.timeFormat} />
+        )}
+
+        {showTab === 'report' && (
+          <ReportTab show={show} run={currentRun} runShows={runShows} />
         )}
 
         {showTab === 'runsheet' && (<>
@@ -446,22 +452,6 @@ export default function TimerView() {
         </div>
         </>)}
       </div>
-
-      {/* Report panel */}
-      <AnimatePresence>
-        {reportOpen && (
-          <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 260, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-            className="shrink-0 overflow-hidden"
-            style={{ width: 260 }}
-          >
-            <ReportPanel show={show} timeFormat={settings.timeFormat} />
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

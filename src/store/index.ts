@@ -38,12 +38,15 @@ function uid(): string {
 function defaultSettings(): AppSettings {
   return {
     timeFormat: '24h',
+    reportTimeFormat: 'match',
+    showTimeStartsAt: 'doors',
     preshowAlertsEnabled: true,
     preshowAlertMinutes: [30, 10, 5],
     intervalWarningEnabled: true,
     intervalWarningMinutes: 5,
     startWithManualTime: false,
     autoStartNext: true,
+    devMode: false,
   };
 }
 
@@ -224,7 +227,8 @@ async function loadTauriStore() {
     const shows = rawShows.map(normalizeShow); // migrate older saved shows to v2 shape
     const currentShowId = (await store.get<string | null>('currentShowId')) ?? null;
     const runs = (await store.get<Run[]>('runs')) ?? [];
-    const settings = (await store.get<AppSettings>('settings')) ?? defaultSettings();
+    const savedSettings = await store.get<Partial<AppSettings>>('settings');
+    const settings = { ...defaultSettings(), ...(savedSettings ?? {}) }; // fill new v2 fields
     return { shows, currentShowId, runs, settings };
   } catch {
     return { shows: [], currentShowId: null, runs: [], settings: defaultSettings() };

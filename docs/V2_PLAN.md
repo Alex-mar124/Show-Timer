@@ -87,11 +87,13 @@ Migration: `normalizeShow()` in `loadTauriStore()` fills new fields on old saved
 - ✅ Within-show **Run Sheet · People** tab strip in `TimerView` (people count badge). Report still the existing side panel until Phase 5/7.
 - ✅ Verified in browser: tabs switch, staff rows add, timestamp modal saves, hours compute.
 
-### Phase 5 — Report overhaul ⬜
-- ⬜ Redesign `pdf.ts`: header/date · client-access block · staff table · show-timing table (NO +/− column) · totals (show vs non-show) · tech-comments box · client-comments box · signature line.
-- ⬜ Honour `reportTimeFormat`.
-- ⬜ `generateRunReportPDF(run, shows)` combined summary (per-day show times, client in/out per day, staff start/finish per day, run totals).
-- ⬜ "Download all individual reports" for a run.
+### Phase 5 — Report overhaul ✅
+- ✅ Settings: `reportTimeFormat` ('12h'|'24h'|'match'), `showTimeStartsAt`, `devMode`; `resolveReportFormat()` helper; SettingsView "Report Clock" control; defaults merged onto old saved settings.
+- ✅ Redesigned `pdf.ts`: header · client-access cards · staff table · show-timing table (NO +/− column) · in-show vs not-in-show totals · tech + client comment boxes · signature (image or sign-here line) · multi-page footer.
+- ✅ `generateRunReportPDF(run, shows)` combined summary (per-day client in/out, staff in/out, show time, run totals) + `generateAllRunReports()`.
+- ✅ `SignaturePad` canvas component (base64 PNG → `clientSignature`).
+- ✅ New **Report tab** (`ReportTab`): live summary + tech/client comments + signature + PDF actions. Replaced the old side `ReportPanel` (removed it + `report.ts` + header toggle). Third within-show tab.
+- ✅ Verified: Report tab renders, PDF generates with no console errors.
 
 ### Phase 6 — Sync whole run + export/import + manager preset ⬜
 - ⬜ Broadcast `{ runs, shows, currentShowId }` slice (`broadcastState`); merge by id (`applyRemoteState`). Rust just relays JSON — only field renames in `session.rs`.

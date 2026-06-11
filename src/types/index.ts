@@ -1,4 +1,6 @@
 export type TimeFormat = '12h' | '24h';
+export type ReportTimeFormat = '12h' | '24h' | 'match';
+export type ShowTimeBoundary = 'doors' | 'show_start';
 export type SessionMode = 'none' | 'hosting' | 'joined';
 export type PerformanceType = 'matinee' | 'evening' | 'other';
 export type CopyStrategy = 'template' | 'last_show';
@@ -174,12 +176,20 @@ function normalizeSegment(raw: Partial<Segment> & { id: string }): Segment {
 
 export interface AppSettings {
   timeFormat: TimeFormat;
+  reportTimeFormat: ReportTimeFormat;   // separate clock for generated reports
+  showTimeStartsAt: ShowTimeBoundary;   // billing boundary for "in show" time
   preshowAlertsEnabled: boolean;
   preshowAlertMinutes: number[];
   intervalWarningEnabled: boolean;
   intervalWarningMinutes: number;
   startWithManualTime: boolean;
   autoStartNext: boolean;
+  devMode: boolean;
+}
+
+/** Resolve the effective report clock from settings (handles 'match'). */
+export function resolveReportFormat(s: AppSettings): TimeFormat {
+  return s.reportTimeFormat === 'match' ? s.timeFormat : s.reportTimeFormat;
 }
 
 export interface Toast {

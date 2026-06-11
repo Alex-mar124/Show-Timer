@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { History, Settings, PanelRight, Plus, Timer, Layers, ChevronDown } from 'lucide-react';
+import { History, Settings, Plus, Timer, Layers, ChevronDown } from 'lucide-react';
 import AppLogo, { AppLogoMark } from './components/AppLogo';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useShowStore } from './store';
@@ -39,7 +39,6 @@ export default function App() {
   const {
     initialize, initialized,
     view, setView,
-    reportOpen, setReportOpen,
     setNewShowModalOpen, setNewRunModalOpen,
     shows, currentShowId, settings,
     addToast,
@@ -172,22 +171,6 @@ export default function App() {
               </button>
             ))}
           </div>
-
-          {/* Report panel toggle */}
-          {view === 'timer' && currentShow && (
-            <button
-              onClick={() => setReportOpen(!reportOpen)}
-              title="Toggle report panel"
-              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-all border ${
-                reportOpen
-                  ? 'border-amber-500/30 bg-amber-500/10 text-amber-400'
-                  : 'border-show-border text-slate-600 hover:text-slate-300 hover:border-slate-600'
-              }`}
-            >
-              <PanelRight className="w-3.5 h-3.5" />
-              <span>Report</span>
-            </button>
-          )}
 
           {/* Sync button */}
           <SessionButton />

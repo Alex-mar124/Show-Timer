@@ -1,4 +1,4 @@
-import { Bell, Clock, Save } from 'lucide-react';
+import { Bell, Clock, FileText } from 'lucide-react';
 import { useShowStore } from '../store';
 import type { AppSettings } from '../types';
 
@@ -51,6 +51,34 @@ export default function SettingsView() {
               }`}
             >
               {fmt === '24h' ? '24-hour (19:30)' : '12-hour (7:30 PM)'}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* Report time format */}
+      <section className="mb-8">
+        <div className="flex items-center gap-2 mb-4">
+          <FileText className="w-4 h-4 text-amber-400" />
+          <h3 className="text-sm font-semibold text-slate-300">Report Clock</h3>
+        </div>
+        <p className="text-xs text-slate-600 mb-3">Time format used in generated PDF reports — independent of the interface.</p>
+        <div className="flex gap-2">
+          {([
+            { v: 'match', label: 'Match interface' },
+            { v: '24h', label: '24-hour' },
+            { v: '12h', label: '12-hour' },
+          ] as const).map(({ v, label }) => (
+            <button
+              key={v}
+              onClick={() => set('reportTimeFormat', v)}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all border ${
+                settings.reportTimeFormat === v
+                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-400'
+                  : 'border-show-border bg-show-card text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              {label}
             </button>
           ))}
         </div>
