@@ -1,0 +1,107 @@
+# Show Timer — v2 Implementation Plan
+
+> Working reference for the v2 overhaul. Kept in `docs/` so it survives context loss.
+> Branch: `v2`. Status legend: ⬜ not started · 🟡 in progress · ✅ done.
+
+## Vision
+
+Each show **file** becomes three linked faces of one event:
+
+| Face | Holds | For |
+|---|---|---|
+| **People** | Staff (name, role, arrival, leave) + client arrival/departure | Staffing / billing |
+| **Run Sheet** | Bump in/out, doors, acts, intervals, manually-added show finish | The operator live |
+| **Report** | Combined output + tech comments + client comments + signature | Handover document |
+
+Underlying goal: **billable time accounting** (time *in show* vs *not in show*) and a **signed handover PDF**. Production runs roll per-day reports into one combined summary.
+
+## Locked decisions (2026-06-11)
+
+- **Show layout:** tabs within the show — People · Run Sheet · Report.
+- **Billable "show time":** doors open → show finish. Doors count as show time. Bump in/out, rehearsal, plotting = "not in show".
+- **Manager preset delivery:** both file export/import (`.showtimer.json`) and push-over-live-session.
+- **Dev mode:** seed + dev panel (CLI flags + preset test shows + in-app dev panel with clock-jump & state dump).
+
+## Data model (foundation)
+
+`src/types/index.ts` — extend `Show`:
+
+```ts
+interface StaffMember {
+  id: string;
+  name: string;
+  role: string;
+  arrival: string | null;    // ISO
+  departure: string | null;  // ISO
+}
+
+interface Show {
+  // ...existing...
+  staff: StaffMember[];           // NEW
+  clientArrival: string | null;   // NEW
+  clientDeparture: string | null; // NEW
+  techNotes: string;              // EXISTS → UI label "Tech Comments"
+  clientComments: string;         // NEW
+  clientSignature: string | null; // NEW — base64 PNG
+}
+```
+
+`AppSettings` additions:
+```ts
+reportTimeFormat: '12h' | '24h' | 'match';  // report clock, separate from interface
+showTimeStartsAt: 'doors' | 'show_start';   // billing boundary (default 'doors')
+devMode: boolean;
+```
+
+Migration: `normalizeShow()` in `loadTauriStore()` fills new fields on old saved shows. **Must land first.**
+
+## Timing semantics
+
+- **Show time** = from doors-open segment start (or `showTimeStartsAt`) to show-finish timestamp. Doors included.
+- **Non-show time** = bump_in, bump_out, rehearsal, plotting segments.
+- New helpers in `types/index.ts`: `getShowTimeWindowMs(show)`, `getNonShowTimeMs(show)`. Keep existing `getShowTimeMs`/`getProductionSegmentMs` until report refactor, then reconcile.
+
+## Phases
+
+### Phase 1 — Data model + migration + timer-behaviour fixes ✅
+- ✅ Add new types + `normalizeShow()` migration (load path in `store/index.ts`).
+- ✅ Store actions: `addStaff`, `updateStaff`, `removeStaff`, `setClientTime(field)`, `updateClientComments`, `setSignature`.
+- ✅ **Undo bump-in auto-start**: `defaultSegments()` → bump_in `actualStart: null`.
+- ✅ **Show finish manual**: removed `show_end` from `defaultSegments()` + run template; added "＋ Show Finish" menu action (`addShowFinish`), single-instance enforced.
+- ✅ `createShow`/`createRun`/`startNextPerformance` initialise People fields via `defaultPeople()`.
+- ✅ New timing helpers `getShowTimeWindowMs` / `getNonShowTimeMs` (doors→finish billing).
+
+### Phase 2 — 12/24h time editing everywhere ⬜
+- ⬜ Reusable `<TimePicker format>` component (HH:MM spinner + AM/PM toggle in 12h).
+- ⬜ Rewrite `TimeEditModal` to use it (currently hard 0–23).
+- ⬜ Replace both `<input type="time">` in `SegmentCard` planned start/end (24h-only + macOS WKWebView no-render).
+
+### Phase 3 — Bidirectional duration ⇄ planned-end ⬜
+- ⬜ `reconcileSchedule()` in store: edit duration → recompute planned end; edit planned end → recompute duration; edit planned start → hold duration, shift end.
+
+### Phase 4 — People face ⬜
+- ⬜ `PeoplePanel` — staff table (add/edit/remove rows; name, role, arrival/leave via TimePicker) + client arrival/departure.
+- ⬜ Mounted as the **People** tab.
+
+### Phase 5 — Report overhaul ⬜
+- ⬜ Redesign `pdf.ts`: header/date · client-access block · staff table · show-timing table (NO +/− column) · totals (show vs non-show) · tech-comments box · client-comments box · signature line.
+- ⬜ Honour `reportTimeFormat`.
+- ⬜ `generateRunReportPDF(run, shows)` combined summary (per-day show times, client in/out per day, staff start/finish per day, run totals).
+- ⬜ "Download all individual reports" for a run.
+
+### Phase 6 — Sync whole run + export/import + manager preset ⬜
+- ⬜ Broadcast `{ runs, shows, currentShowId }` slice (`broadcastState`); merge by id (`applyRemoteState`). Rust just relays JSON — only field renames in `session.rs`.
+- ⬜ Export/import `.showtimer.json` (Tauri dialog + fs plugin) for a show or whole run.
+- ⬜ Manager preset: build run w/ planned times, no actuals → export file AND/OR push over session; staff loads → presses Start.
+
+### Phase 7 — Dev mode + interface redesign + polish ⬜
+- ⬜ CLI flags in `main.rs`/`lib.rs`: `--dev`, `--seed`, `--scenario=<name>`.
+- ⬜ Dev panel (gated by `devMode`): seed preset shows, jump clock, simulate peer, dump/log sync traffic; verbose sync logging.
+- ⬜ Interface redesign around People / Run Sheet / Report tabs; fix mixed pre/show/post list confusion.
+- ⬜ General bug + visual sweep; expose more custom settings.
+
+## Notes / ideas worth adding as we go
+- Clock-jump dev tool needs a global "now" injection (currently `useClock` reads real `new Date()`); add a dev clock offset in the store that `useClock` and timing helpers respect.
+- Signature pad: small canvas component → base64 PNG into `clientSignature`.
+- Export filename convention: `<Production>-<date>.showtimer.json`.
+- Consider a `schemaVersion` field on the persisted store for future migrations.

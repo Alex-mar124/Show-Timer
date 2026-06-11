@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { Show, Run, Segment, SegmentType, TemplateSegment, PerformanceType, CopyStrategy, DayType, AppSettings, Toast, View, TimeFormat, SessionState, SessionPeer, DiscoveredSession } from '../types';
+import type { Show, Run, Segment, SegmentType, StaffMember, TemplateSegment, PerformanceType, CopyStrategy, DayType, AppSettings, Toast, View, TimeFormat, SessionState, SessionPeer, DiscoveredSession } from '../types';
+import { normalizeShow } from '../types';
 import { nowISO, todayISO } from '../utils/time';
 
 // ── Session helpers (called from store actions) ───────────────────────────────
@@ -46,14 +47,15 @@ function defaultSettings(): AppSettings {
   };
 }
 
-function defaultSegments(bumpInStartTime?: string): Segment[] {
+function defaultSegments(): Segment[] {
+  // v2: bump-in is NOT auto-started — it waits for the operator. Show finish
+  // is added manually via the "＋ Show Finish" action, so it's omitted here.
   const types: Array<{ type: SegmentType; label: string; exp: number | null }> = [
     { type: 'bump_in',  label: 'Bump In',  exp: null },
     { type: 'doors',    label: 'Doors',    exp: 30 },
     { type: 'act',      label: 'Act 1',    exp: 55 },
     { type: 'interval', label: 'Interval', exp: 20 },
     { type: 'act',      label: 'Act 2',    exp: 55 },
-    { type: 'show_end', label: 'Show End', exp: null },
   ];
   return types.map((t, i) => ({
     id: uid(),
@@ -62,12 +64,17 @@ function defaultSegments(bumpInStartTime?: string): Segment[] {
     expectedDurationMinutes: t.exp,
     plannedStart: null,
     plannedEnd: null,
-    actualStart: t.type === 'bump_in' ? (bumpInStartTime ?? null) : null,
+    actualStart: null,
     actualEnd: null,
     holds: [],
     notes: '',
     order: i,
   }));
+}
+
+/** Fresh People-face defaults for a new show. */
+function defaultPeople(): Pick<Show, 'staff' | 'clientArrival' | 'clientDeparture' | 'clientComments' | 'clientSignature'> {
+  return { staff: [], clientArrival: null, clientDeparture: null, clientComments: '', clientSignature: null };
 }
 
 interface ShowStore {
@@ -96,6 +103,17 @@ interface ShowStore {
   updateTechNotes: (id: string, techNotes: string) => void;
   completeShow: (id: string) => void;
   deleteShow: (id: string) => void;
+
+  // People-face actions (v2)
+  addStaff: (showId: string) => void;
+  updateStaff: (showId: string, staffId: string, patch: Partial<StaffMember>) => void;
+  removeStaff: (showId: string, staffId: string) => void;
+  setClientTime: (showId: string, field: 'clientArrival' | 'clientDeparture', time: Date | null) => void;
+  updateClientComments: (showId: string, comments: string) => void;
+  setSignature: (showId: string, dataUrl: string | null) => void;
+
+  // Show-finish helper (v2 — added manually)
+  addShowFinish: (showId: string) => void;
 
   // Run actions
   createRun: (data: {
@@ -156,7 +174,8 @@ async function loadTauriStore() {
   try {
     const { load } = await import('@tauri-apps/plugin-store');
     const store = await load('show-timer.json', { autoSave: false, defaults: {} });
-    const shows = (await store.get<Show[]>('shows')) ?? [];
+    const rawShows = (await store.get<Show[]>('shows')) ?? [];
+    const shows = rawShows.map(normalizeShow); // migrate older saved shows to v2 shape
     const currentShowId = (await store.get<string | null>('currentShowId')) ?? null;
     const runs = (await store.get<Run[]>('runs')) ?? [];
     const settings = (await store.get<AppSettings>('settings')) ?? defaultSettings();
@@ -215,9 +234,10 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       date: data.date,
       plannedStartTime: data.plannedStartTime,
       doorsOpenTime: data.doorsOpenTime,
-      segments: defaultSegments(nowISO()),
+      segments: defaultSegments(),
       notes: '',
       techNotes: '',
+      ...defaultPeople(),
       createdAt: nowISO(),
       completedAt: null,
     };
@@ -256,6 +276,75 @@ export const useShowStore = create<ShowStore>((set, get) => ({
         ? s.runs.map(r => r.id === show.runId ? { ...r, showIds: r.showIds.filter(sid => sid !== id) } : r)
         : s.runs,
     }));
+    get().saveToStore();
+  },
+
+  // ── People-face actions (v2) ────────────────────────────────────────────────
+
+  addStaff: (showId) => {
+    const member: StaffMember = { id: uid(), name: '', role: '', arrival: null, departure: null };
+    set(s => ({
+      shows: s.shows.map(sh => sh.id !== showId ? sh : { ...sh, staff: [...sh.staff, member] }),
+    }));
+    get().saveToStore();
+  },
+
+  updateStaff: (showId, staffId, patch) => {
+    set(s => ({
+      shows: s.shows.map(sh => sh.id !== showId ? sh : {
+        ...sh,
+        staff: sh.staff.map(m => m.id !== staffId ? m : { ...m, ...patch }),
+      }),
+    }));
+    get().saveToStore();
+  },
+
+  removeStaff: (showId, staffId) => {
+    set(s => ({
+      shows: s.shows.map(sh => sh.id !== showId ? sh : {
+        ...sh,
+        staff: sh.staff.filter(m => m.id !== staffId),
+      }),
+    }));
+    get().saveToStore();
+  },
+
+  setClientTime: (showId, field, time) => {
+    const t = time ? time.toISOString() : null;
+    set(s => ({
+      shows: s.shows.map(sh => sh.id !== showId ? sh : { ...sh, [field]: t }),
+    }));
+    get().saveToStore();
+  },
+
+  updateClientComments: (showId, comments) => {
+    set(s => ({
+      shows: s.shows.map(sh => sh.id !== showId ? sh : { ...sh, clientComments: comments }),
+    }));
+    get().saveToStore();
+  },
+
+  setSignature: (showId, dataUrl) => {
+    set(s => ({
+      shows: s.shows.map(sh => sh.id !== showId ? sh : { ...sh, clientSignature: dataUrl }),
+    }));
+    get().saveToStore();
+  },
+
+  addShowFinish: (showId) => {
+    set(s => {
+      const show = s.shows.find(sh => sh.id === showId);
+      if (!show) return s;
+      // Only one show-finish per show.
+      if (show.segments.some(seg => seg.type === 'show_end')) return s;
+      const maxOrder = show.segments.reduce((m, seg) => Math.max(m, seg.order), -1);
+      const seg: Segment = {
+        id: uid(), type: 'show_end', label: 'Show Finish',
+        expectedDurationMinutes: null, plannedStart: null, plannedEnd: null,
+        actualStart: null, actualEnd: null, holds: [], notes: '', order: maxOrder + 1,
+      };
+      return { shows: s.shows.map(sh => sh.id !== showId ? sh : { ...sh, segments: [...sh.segments, seg] }) };
+    });
     get().saveToStore();
   },
 
@@ -567,6 +656,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       segments,
       notes: '',
       techNotes: '',
+      ...defaultPeople(),
       createdAt: nowISO(),
       completedAt: null,
       runId,
@@ -663,6 +753,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       segments,
       notes: '',
       techNotes,
+      ...defaultPeople(),
       createdAt: nowISO(),
       completedAt: null,
       runId,

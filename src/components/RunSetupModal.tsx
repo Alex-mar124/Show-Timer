@@ -35,7 +35,7 @@ function defaultTemplateSegments(): TemplateSegment[] {
     { id: uid(), type: 'act',      label: 'Act 1',    expectedDurationMinutes: 55, order: 1 },
     { id: uid(), type: 'interval', label: 'Interval', expectedDurationMinutes: 20, order: 2 },
     { id: uid(), type: 'act',      label: 'Act 2',    expectedDurationMinutes: 55, order: 3 },
-    { id: uid(), type: 'show_end', label: 'Show End', expectedDurationMinutes: null, order: 4 },
+    // v2: Show Finish is added manually during the run, not baked into the template.
   ];
 }
 

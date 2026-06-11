@@ -94,6 +94,14 @@ export interface Segment {
   order: number;
 }
 
+export interface StaffMember {
+  id: string;
+  name: string;
+  role: string;
+  arrival: string | null;    // ISO timestamp
+  departure: string | null;  // ISO timestamp
+}
+
 export interface Show {
   id: string;
   title: string;
@@ -103,7 +111,13 @@ export interface Show {
   doorsOpenTime: string | null;
   segments: Segment[];
   notes: string;
-  techNotes: string;
+  techNotes: string;          // shown as "Tech Comments" in v2 UI
+  // ── People face (v2) ──────────────────────────────────────────────────────
+  staff: StaffMember[];
+  clientArrival: string | null;     // ISO timestamp
+  clientDeparture: string | null;   // ISO timestamp
+  clientComments: string;
+  clientSignature: string | null;   // base64 PNG data URL
   createdAt: string;
   completedAt: string | null;
   // Run membership (optional — standalone shows omit these)
@@ -111,6 +125,51 @@ export interface Show {
   performanceNumber?: number;
   performanceType?: PerformanceType;
   dayType?: DayType;
+}
+
+/**
+ * Fill in v2 fields on shows loaded from older saved data so the rest of the
+ * app can assume they always exist. Safe to run on already-current shows.
+ */
+export function normalizeShow(raw: Partial<Show> & { id: string }): Show {
+  return {
+    title: raw.title ?? '',
+    production: raw.production ?? '',
+    date: raw.date ?? new Date().toISOString().slice(0, 10),
+    plannedStartTime: raw.plannedStartTime ?? null,
+    doorsOpenTime: raw.doorsOpenTime ?? null,
+    segments: (raw.segments ?? []).map(normalizeSegment),
+    notes: raw.notes ?? '',
+    techNotes: raw.techNotes ?? '',
+    staff: raw.staff ?? [],
+    clientArrival: raw.clientArrival ?? null,
+    clientDeparture: raw.clientDeparture ?? null,
+    clientComments: raw.clientComments ?? '',
+    clientSignature: raw.clientSignature ?? null,
+    createdAt: raw.createdAt ?? new Date().toISOString(),
+    completedAt: raw.completedAt ?? null,
+    runId: raw.runId,
+    performanceNumber: raw.performanceNumber,
+    performanceType: raw.performanceType,
+    dayType: raw.dayType,
+    id: raw.id,
+  };
+}
+
+function normalizeSegment(raw: Partial<Segment> & { id: string }): Segment {
+  return {
+    id: raw.id,
+    type: raw.type ?? 'custom',
+    label: raw.label ?? '',
+    expectedDurationMinutes: raw.expectedDurationMinutes ?? null,
+    plannedStart: raw.plannedStart ?? null,
+    plannedEnd: raw.plannedEnd ?? null,
+    actualStart: raw.actualStart ?? null,
+    actualEnd: raw.actualEnd ?? null,
+    holds: raw.holds ?? [],
+    notes: raw.notes ?? '',
+    order: raw.order ?? 0,
+  };
 }
 
 export interface AppSettings {
@@ -180,4 +239,59 @@ export function getProductionSegmentMs(show: Show, now: Date): number {
     .reduce((acc, s) => acc + getElapsedMs(s, now), 0);
 }
 
-export { SHOW_CORE_TYPES, PRODUCTION_TYPES };
+// ── v2 billable-time accounting ───────────────────────────────────────────────
+// "Show time" = the window the audience/client is in for the performance:
+// doors open → show finish (doors counted as show time).
+// "Non-show time" = technical work outside that window: bump in/out,
+// rehearsal, plotting.
+
+const NON_SHOW_TYPES = new Set<SegmentType>(['bump_in', 'bump_out', 'rehearsal', 'plotting']);
+
+/**
+ * Total elapsed of the "in show" window. Spans from the earliest started
+ * doors/house/show-core segment to the show-finish timestamp (or now if the
+ * show hasn't finished). Falls back to summing show-core segments when no
+ * doors segment exists.
+ */
+export function getShowTimeWindowMs(show: Show, now: Date): number {
+  const segs = [...show.segments].sort((a, b) => a.order - b.order);
+  const windowTypes = new Set<SegmentType>([
+    'doors', 'house_open', 'act', 'interval', 'curtain_call', 'custom',
+  ]);
+
+  // Earliest actual start among in-window segments = window start.
+  let startMs: number | null = null;
+  for (const s of segs) {
+    if (windowTypes.has(s.type) && s.actualStart) {
+      const t = new Date(s.actualStart).getTime();
+      if (startMs === null || t < startMs) startMs = t;
+    }
+  }
+  if (startMs === null) return 0;
+
+  // Window end: show_end timestamp, else latest actualEnd, else now.
+  const showEnd = segs.find(s => s.type === 'show_end');
+  let endMs: number;
+  if (showEnd?.actualStart) {
+    endMs = new Date(showEnd.actualStart).getTime();
+  } else {
+    let latest = startMs;
+    for (const s of segs) {
+      if (windowTypes.has(s.type)) {
+        const e = s.actualEnd ? new Date(s.actualEnd).getTime() : (s.actualStart ? now.getTime() : 0);
+        if (e > latest) latest = e;
+      }
+    }
+    endMs = latest;
+  }
+  return Math.max(0, endMs - startMs);
+}
+
+/** Total elapsed of non-show (technical) segments: bump in/out, rehearsal, plotting. */
+export function getNonShowTimeMs(show: Show, now: Date): number {
+  return show.segments
+    .filter(s => NON_SHOW_TYPES.has(s.type))
+    .reduce((acc, s) => acc + getElapsedMs(s, now), 0);
+}
+
+export { SHOW_CORE_TYPES, PRODUCTION_TYPES, NON_SHOW_TYPES };

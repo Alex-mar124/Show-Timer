@@ -1,4 +1,4 @@
-import { Plus, ChevronDown, RefreshCw, ChevronRight, ChevronUp } from 'lucide-react';
+import { Plus, ChevronDown, RefreshCw, ChevronRight, ChevronUp, Flag } from 'lucide-react';
 import AppLogo from './AppLogo';
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -38,7 +38,7 @@ export default function TimerView() {
   const {
     shows, runs, currentShowId, settings, reportOpen,
     setNewShowModalOpen, setNewRunModalOpen,
-    addSegment, updateShowNotes, reorderSegments,
+    addSegment, addShowFinish, updateShowNotes, reorderSegments,
     syncTemplateFromShow, startNextPerformance, addToast,
   } = useShowStore();
   const now = useClock();
@@ -122,6 +122,7 @@ export default function TimerView() {
   ];
 
   const isNonPerfDay = !!show?.dayType && show.dayType !== 'performance';
+  const hasShowFinish = segments.some(s => s.type === 'show_end');
 
   function segmentZone(type: SegmentType): 'pre' | 'show' | 'post' {
     if (type === 'bump_out') return 'post';
@@ -275,6 +276,15 @@ export default function TimerView() {
                       {label}
                     </button>
                   ))}
+                  {!hasShowFinish && (
+                    <button
+                      onClick={() => { addShowFinish(show.id); setAddMenuOpen(false); }}
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-green-300 hover:bg-show-hover hover:text-green-200 transition-colors"
+                    >
+                      <Flag className="w-3.5 h-3.5" />
+                      Show Finish
+                    </button>
+                  )}
                   <div className="border-t border-show-border/50 my-1" />
                   <p className="px-3 pt-1.5 pb-1 text-[10px] text-slate-600 uppercase tracking-widest font-semibold">Production</p>
                   {addTypes.filter(t => t.group === 'other').map(({ type, label }) => (
