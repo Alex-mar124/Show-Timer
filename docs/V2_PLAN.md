@@ -78,8 +78,8 @@ Migration: `normalizeShow()` in `loadTauriStore()` fills new fields on old saved
 - ✅ `ShowSetupModal` + `RunSetupModal` use shared `CompactTimePicker` (removed remaining `type="time"`).
 - ✅ Verified in browser: 12h shows AM/PM (07:30 PM), 24h shows 19:30 with no toggle.
 
-### Phase 3 — Bidirectional duration ⇄ planned-end ⬜
-- ⬜ `reconcileSchedule()` in store: edit duration → recompute planned end; edit planned end → recompute duration; edit planned start → hold duration, shift end.
+### Phase 3 — Bidirectional duration ⇄ planned-end ✅
+- ✅ `reconcileSchedule(seg, edited)` in store + `hmToMin`/`minToHm` (overnight-wrapping). Edit duration → recompute end (or start); edit planned end → recompute duration (or start); edit planned start → hold duration, shift end (or derive duration). Wired into `updateSegmentExpected` and `updateSegmentSchedule` (clearing a field skips derivation).
 
 ### Phase 4 — People face ⬜
 - ⬜ `PeoplePanel` — staff table (add/edit/remove rows; name, role, arrival/leave via TimePicker) + client arrival/departure.

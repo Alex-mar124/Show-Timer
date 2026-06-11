@@ -72,6 +72,52 @@ function defaultSegments(): Segment[] {
   }));
 }
 
+// ── Schedule reconciliation (v2 Phase 3) ──────────────────────────────────────
+// Keeps plannedStart, plannedEnd and expectedDurationMinutes consistent:
+// end = start + duration. When the user edits one field we derive the others.
+
+function hmToMin(hm: string | null): number | null {
+  if (!hm) return null;
+  const [h, m] = hm.split(':').map(Number);
+  if (isNaN(h) || isNaN(m)) return null;
+  return h * 60 + m;
+}
+function minToHm(min: number): string {
+  const wrapped = ((min % 1440) + 1440) % 1440; // wrap across midnight
+  const h = Math.floor(wrapped / 60);
+  const m = wrapped % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+type ScheduleEdit = 'plannedStart' | 'plannedEnd' | 'expectedDuration';
+
+/** Return a patch of {plannedStart?, plannedEnd?, expectedDurationMinutes?} that
+ *  reconciles the segment after `edited` changed. The edited field is authoritative. */
+function reconcileSchedule(seg: Segment, edited: ScheduleEdit): Partial<Segment> {
+  const start = hmToMin(seg.plannedStart);
+  const end = hmToMin(seg.plannedEnd);
+  const dur = seg.expectedDurationMinutes;
+  const patch: Partial<Segment> = {};
+
+  const durFromSpan = (s: number, e: number) => {
+    let d = e - s;
+    if (d < 0) d += 1440; // overnight span
+    return d;
+  };
+
+  if (edited === 'plannedStart' && start !== null) {
+    if (dur != null) patch.plannedEnd = minToHm(start + dur);
+    else if (end !== null) patch.expectedDurationMinutes = durFromSpan(start, end);
+  } else if (edited === 'plannedEnd' && end !== null) {
+    if (start !== null) patch.expectedDurationMinutes = durFromSpan(start, end);
+    else if (dur != null) patch.plannedStart = minToHm(end - dur);
+  } else if (edited === 'expectedDuration' && dur != null) {
+    if (start !== null) patch.plannedEnd = minToHm(start + dur);
+    else if (end !== null) patch.plannedStart = minToHm(end - dur);
+  }
+  return patch;
+}
+
 /** Fresh People-face defaults for a new show. */
 function defaultPeople(): Pick<Show, 'staff' | 'clientArrival' | 'clientDeparture' | 'clientComments' | 'clientSignature'> {
   return { staff: [], clientArrival: null, clientDeparture: null, clientComments: '', clientSignature: null };
@@ -466,9 +512,11 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       shows: s.shows.map(sh =>
         sh.id !== showId ? sh : {
           ...sh,
-          segments: sh.segments.map(seg =>
-            seg.id !== segmentId ? seg : { ...seg, expectedDurationMinutes: minutes }
-          ),
+          segments: sh.segments.map(seg => {
+            if (seg.id !== segmentId) return seg;
+            const next = { ...seg, expectedDurationMinutes: minutes };
+            return { ...next, ...reconcileSchedule(next, 'expectedDuration') };
+          }),
         }
       ),
     }));
@@ -494,9 +542,13 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       shows: s.shows.map(sh =>
         sh.id !== showId ? sh : {
           ...sh,
-          segments: sh.segments.map(seg =>
-            seg.id !== segmentId ? seg : { ...seg, [field]: value || null }
-          ),
+          segments: sh.segments.map(seg => {
+            if (seg.id !== segmentId) return seg;
+            const next = { ...seg, [field]: value || null };
+            // Clearing a field shouldn't trigger derivation.
+            if (!value) return next;
+            return { ...next, ...reconcileSchedule(next, field) };
+          }),
         }
       ),
     }));
