@@ -152,6 +152,7 @@ interface ShowStore {
   updateTechNotes: (id: string, techNotes: string) => void;
   completeShow: (id: string) => void;
   deleteShow: (id: string) => void;
+  importBundle: (data: { runs: Run[]; shows: Show[] }) => { showCount: number; runCount: number };
 
   // People-face actions (v2)
   addStaff: (showId: string) => void;
@@ -327,6 +328,38 @@ export const useShowStore = create<ShowStore>((set, get) => ({
         : s.runs,
     }));
     get().saveToStore();
+  },
+
+  importBundle: (data) => {
+    // Remap all IDs so imported data can't collide with existing records.
+    const runIdMap = new Map<string, string>();
+    for (const r of data.runs) runIdMap.set(r.id, uid());
+    const showIdMap = new Map<string, string>();
+    for (const sh of data.shows) showIdMap.set(sh.id, uid());
+
+    const newRuns: Run[] = data.runs.map(r => ({
+      ...r,
+      id: runIdMap.get(r.id)!,
+      showIds: r.showIds.map(sid => showIdMap.get(sid)).filter((x): x is string => !!x),
+      createdAt: nowISO(),
+    }));
+
+    const newShows: Show[] = data.shows.map(sh => ({
+      ...sh,
+      id: showIdMap.get(sh.id)!,
+      runId: sh.runId ? (runIdMap.get(sh.runId) ?? undefined) : undefined,
+      createdAt: nowISO(),
+    }));
+
+    const firstId = newShows[0]?.id ?? null;
+    set(s => ({
+      runs: [...newRuns, ...s.runs],
+      shows: [...newShows, ...s.shows],
+      currentShowId: firstId ?? s.currentShowId,
+      view: 'timer',
+    }));
+    get().saveToStore();
+    return { showCount: newShows.length, runCount: newRuns.length };
   },
 
   // ── People-face actions (v2) ────────────────────────────────────────────────
@@ -970,20 +1003,42 @@ export const useShowStore = create<ShowStore>((set, get) => ({
   applyRemoteShowState: (showJson, syncId) => {
     try {
       if (!showJson) return;
-      const show: Show = JSON.parse(showJson);
-      if (!show?.id) return;
       // Ignore our own echo
       const { session } = get();
       if (syncId && syncId === session.lastSyncId) return;
-      // Merge: update existing show or add it, then switch to timer view
-      const targetId = show.id;
+
+      const parsed = JSON.parse(showJson);
+
+      // Accept both the v2 multi-show doc and a bare legacy single show.
+      let incomingShows: Show[];
+      let incomingRuns: Run[];
+      let targetId: string | null;
+      if (parsed && Array.isArray(parsed.shows)) {
+        incomingShows = parsed.shows.map(normalizeShow);
+        incomingRuns = Array.isArray(parsed.runs) ? parsed.runs : [];
+        targetId = parsed.currentShowId ?? incomingShows[0]?.id ?? null;
+      } else if (parsed?.id) {
+        incomingShows = [normalizeShow(parsed)];
+        incomingRuns = [];
+        targetId = parsed.id;
+      } else {
+        return;
+      }
+      if (incomingShows.length === 0) return;
+
       set(s => {
-        const exists = s.shows.find(sh => sh.id === targetId);
+        const showIds = new Set(incomingShows.map(sh => sh.id));
+        const runIds = new Set(incomingRuns.map(r => r.id));
         return {
-          shows: exists
-            ? s.shows.map(sh => sh.id === targetId ? show : sh)
-            : [show, ...s.shows],
-          currentShowId: targetId,
+          shows: [
+            ...incomingShows,
+            ...s.shows.filter(sh => !showIds.has(sh.id)),
+          ],
+          runs: [
+            ...incomingRuns,
+            ...s.runs.filter(r => !runIds.has(r.id)),
+          ],
+          currentShowId: targetId ?? s.currentShowId,
           view: 'timer' as const,
         };
       });
@@ -1015,14 +1070,29 @@ export const useShowStore = create<ShowStore>((set, get) => ({
   },
 
   broadcastCurrentShow: async () => {
-    const { shows, currentShowId, session } = get();
+    const { shows, runs, currentShowId, session } = get();
     if (session.mode === 'none') return;
     const show = shows.find(s => s.id === currentShowId);
     if (!show) return;
+
+    // Sync the whole run (all its shows + the run record) when the current
+    // show belongs to one; otherwise just the standalone show.
+    let docShows: Show[];
+    let docRuns: Run[];
+    if (show.runId) {
+      const run = runs.find(r => r.id === show.runId);
+      docShows = shows.filter(s => s.runId === show.runId);
+      docRuns = run ? [run] : [];
+    } else {
+      docShows = [show];
+      docRuns = [];
+    }
+
+    const doc = { v: 2 as const, shows: docShows, runs: docRuns, currentShowId };
     const syncId = uid();
     set(s => ({ session: { ...s.session, lastSyncId: syncId } }));
     await invokeTauri('session_broadcast_state', {
-      stateJson: JSON.stringify(show),
+      stateJson: JSON.stringify(doc),
       syncId,
     });
   },

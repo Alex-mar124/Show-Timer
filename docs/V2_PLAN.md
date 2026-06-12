@@ -95,10 +95,15 @@ Migration: `normalizeShow()` in `loadTauriStore()` fills new fields on old saved
 - ✅ New **Report tab** (`ReportTab`): live summary + tech/client comments + signature + PDF actions. Replaced the old side `ReportPanel` (removed it + `report.ts` + header toggle). Third within-show tab.
 - ✅ Verified: Report tab renders, PDF generates with no console errors.
 
-### Phase 6 — Sync whole run + export/import + manager preset ⬜
-- ⬜ Broadcast `{ runs, shows, currentShowId }` slice (`broadcastState`); merge by id (`applyRemoteState`). Rust just relays JSON — only field renames in `session.rs`.
-- ⬜ Export/import `.showtimer.json` (Tauri dialog + fs plugin) for a show or whole run.
-- ⬜ Manager preset: build run w/ planned times, no actuals → export file AND/OR push over session; staff loads → presses Start.
+### Phase 6 — Sync whole run + export/import + manager preset ✅
+- ✅ `broadcastCurrentShow` now sends a v2 doc `{ v, shows, runs, currentShowId }` — the whole run (its shows + run record) when the current show belongs to one, else the standalone show. No Rust change (transport relays an opaque JSON string).
+- ✅ `applyRemoteShowState` parses the v2 doc (back-compatible with bare legacy show), merges shows + runs by id, sets current.
+- ✅ `src/utils/exchange.ts`: Blob-download export + file-input import (no Tauri fs/dialog plugin needed — works in webview + browser). `exportShow`/`exportRun` with `preset` flag (`toPreset` strips actuals/people-times/comments/signature).
+- ✅ `importBundle` store action remaps all run/show IDs to avoid collisions, fixes runId + showIds references.
+- ✅ UI: Report tab "Share & Export Data" (Export Show / Preset / Run / Run Preset); New menu "Import File".
+- ✅ Verified: export fires correct filenames, bundle is valid v2, round-trips.
+
+> Manager preset "both" delivery: **file** = Export Preset → Import File. **session** = existing whole-run sync (host builds preset, staff join and press Start).
 
 ### Phase 7 — Dev mode + interface redesign + polish ⬜
 - ⬜ CLI flags in `main.rs`/`lib.rs`: `--dev`, `--seed`, `--scenario=<name>`.

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { History, Settings, Plus, Timer, Layers, ChevronDown } from 'lucide-react';
+import { History, Settings, Plus, Timer, Layers, ChevronDown, Upload } from 'lucide-react';
 import AppLogo, { AppLogoMark } from './components/AppLogo';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useShowStore } from './store';
@@ -13,6 +13,7 @@ import SessionButton from './components/SessionButton';
 import SessionPanel from './components/SessionPanel';
 import { schedulePreShowNotifications } from './utils/notifications';
 import { formatDateShort } from './utils/time';
+import { pickFile, parseBundle } from './utils/exchange';
 import type { View } from './types';
 
 const NAV_ITEMS: Array<{ view: View; Icon: React.ElementType; label: string }> = [
@@ -41,7 +42,7 @@ export default function App() {
     view, setView,
     setNewShowModalOpen, setNewRunModalOpen,
     shows, currentShowId, settings,
-    addToast,
+    addToast, importBundle,
     session,
     applyRemoteShowState,
     onPeerJoined,
@@ -99,6 +100,23 @@ export default function App() {
   }, [initialized]);
 
   const currentShow = shows.find(s => s.id === currentShowId);
+
+  async function handleImport() {
+    setNewMenuOpen(false);
+    try {
+      const text = await pickFile();
+      if (!text) return;
+      const { runs, shows } = parseBundle(text);
+      const { showCount, runCount } = importBundle({ runs, shows });
+      addToast({
+        title: 'Imported',
+        message: `${showCount} show${showCount === 1 ? '' : 's'}${runCount ? `, ${runCount} run` : ''}`,
+        type: 'success',
+      });
+    } catch (e) {
+      addToast({ title: 'Import failed', message: e instanceof Error ? e.message : 'Invalid file', type: 'error' });
+    }
+  }
 
   if (!initialized) {
     return (
@@ -214,6 +232,17 @@ export default function App() {
                     <div className="text-left">
                       <p className="font-medium text-sm">Production Run</p>
                       <p className="text-[11px] text-slate-600">Multi-night run</p>
+                    </div>
+                  </button>
+                  <div className="h-px bg-show-border mx-3" />
+                  <button
+                    onClick={handleImport}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-300 hover:bg-show-hover hover:text-slate-100 transition-colors"
+                  >
+                    <Upload className="w-4 h-4 text-slate-500 shrink-0" />
+                    <div className="text-left">
+                      <p className="font-medium text-sm">Import File</p>
+                      <p className="text-[11px] text-slate-600">Open a .showtimer.json</p>
                     </div>
                   </button>
                 </motion.div>

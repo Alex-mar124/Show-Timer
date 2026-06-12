@@ -1,10 +1,11 @@
-import { FileDown, FileText, Files, Clock, Users, DoorOpen } from 'lucide-react';
+import { FileDown, FileText, Files, Clock, Users, DoorOpen, Share2, Package } from 'lucide-react';
 import { useShowStore } from '../store';
 import { useClock } from '../hooks/useClock';
 import type { Show, Run } from '../types';
 import { resolveReportFormat, getShowTimeWindowMs, getNonShowTimeMs } from '../types';
 import { formatDuration, formatTime } from '../utils/time';
 import { generatePDF, generateRunReportPDF, generateAllRunReports } from '../utils/pdf';
+import { exportShow, exportRun } from '../utils/exchange';
 import SignaturePad from './SignaturePad';
 
 interface Props {
@@ -31,7 +32,7 @@ function Stat({ label, value, color, Icon }: { label: string; value: string; col
 }
 
 export default function ReportTab({ show, run, runShows }: Props) {
-  const { settings, updateTechNotes, updateClientComments, setSignature } = useShowStore();
+  const { settings, updateTechNotes, updateClientComments, setSignature, addToast } = useShowStore();
   const now = useClock();
   const reportFormat = resolveReportFormat(settings);
 
@@ -115,6 +116,47 @@ export default function ReportTab({ show, run, runShows }: Props) {
             </button>
           </div>
         )}
+      </section>
+
+      {/* ── Share / export data ────────────────────────────────────────────── */}
+      <section className="pt-2 border-t border-show-border">
+        <div className="flex items-center gap-2 mb-2">
+          <Share2 className="w-3.5 h-3.5 text-slate-500" />
+          <h3 className="text-xs font-semibold text-slate-400">Share &amp; Export Data</h3>
+        </div>
+        <p className="text-[11px] text-slate-600 mb-3">
+          Export a <code className="text-slate-500">.showtimer.json</code> file to back up, transfer, or send a preset for staff to run.
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => { exportShow(show, false); addToast({ title: 'Show exported', message: 'Saved .showtimer.json', type: 'success' }); }}
+            className="flex items-center justify-center gap-2 py-2 rounded-lg border border-show-border hover:border-slate-600 text-slate-400 hover:text-slate-200 text-xs font-medium transition-all"
+          >
+            <FileDown className="w-3.5 h-3.5" /> Export Show
+          </button>
+          <button
+            onClick={() => { exportShow(show, true); addToast({ title: 'Preset exported', message: 'Clean plan for staff to run', type: 'success' }); }}
+            className="flex items-center justify-center gap-2 py-2 rounded-lg border border-show-border hover:border-amber-500/30 text-slate-400 hover:text-amber-400 text-xs font-medium transition-all"
+          >
+            <Package className="w-3.5 h-3.5" /> Export Preset
+          </button>
+          {run && (
+            <>
+              <button
+                onClick={() => { exportRun(run, runShows, false); addToast({ title: 'Run exported', message: `${runShows.length} shows`, type: 'success' }); }}
+                className="flex items-center justify-center gap-2 py-2 rounded-lg border border-show-border hover:border-slate-600 text-slate-400 hover:text-slate-200 text-xs font-medium transition-all"
+              >
+                <FileDown className="w-3.5 h-3.5" /> Export Run
+              </button>
+              <button
+                onClick={() => { exportRun(run, runShows, true); addToast({ title: 'Run preset exported', message: 'Clean plan for staff', type: 'success' }); }}
+                className="flex items-center justify-center gap-2 py-2 rounded-lg border border-show-border hover:border-amber-500/30 text-slate-400 hover:text-amber-400 text-xs font-medium transition-all"
+              >
+                <Package className="w-3.5 h-3.5" /> Export Run Preset
+              </button>
+            </>
+          )}
+        </div>
       </section>
     </div>
   );
