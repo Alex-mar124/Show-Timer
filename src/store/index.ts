@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Show, Run, Segment, SegmentType, StaffMember, TemplateSegment, PerformanceType, CopyStrategy, DayType, AppSettings, Toast, View, TimeFormat, SessionState, SessionPeer, DiscoveredSession } from '../types';
+import type { Show, Run, Segment, SegmentType, StaffMember, StaffBreak, TemplateSegment, PerformanceType, CopyStrategy, DayType, AppSettings, Toast, View, TimeFormat, SessionState, SessionPeer, DiscoveredSession } from '../types';
 import { normalizeShow } from '../types';
 import { nowISO, todayISO } from '../utils/time';
 
@@ -166,6 +166,9 @@ interface ShowStore {
   addStaff: (showId: string) => void;
   updateStaff: (showId: string, staffId: string, patch: Partial<StaffMember>) => void;
   removeStaff: (showId: string, staffId: string) => void;
+  addStaffBreak: (showId: string, staffId: string, minutes: number) => void;
+  updateStaffBreak: (showId: string, staffId: string, breakId: string, minutes: number) => void;
+  removeStaffBreak: (showId: string, staffId: string, breakId: string) => void;
   setClientTime: (showId: string, field: 'clientArrival' | 'clientDeparture', time: Date | null) => void;
   updateClientComments: (showId: string, comments: string) => void;
   setSignature: (showId: string, dataUrl: string | null) => void;
@@ -403,7 +406,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
   // ── People-face actions (v2) ────────────────────────────────────────────────
 
   addStaff: (showId) => {
-    const member: StaffMember = { id: uid(), name: '', role: '', arrival: null, departure: null };
+    const member: StaffMember = { id: uid(), name: '', role: '', arrival: null, departure: null, breaks: [] };
     set(s => ({
       shows: s.shows.map(sh => sh.id !== showId ? sh : { ...sh, staff: [...sh.staff, member] }),
     }));
@@ -425,6 +428,41 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       shows: s.shows.map(sh => sh.id !== showId ? sh : {
         ...sh,
         staff: sh.staff.filter(m => m.id !== staffId),
+      }),
+    }));
+    get().saveToStore();
+  },
+
+  addStaffBreak: (showId, staffId, minutes) => {
+    const br: StaffBreak = { id: uid(), minutes };
+    set(s => ({
+      shows: s.shows.map(sh => sh.id !== showId ? sh : {
+        ...sh,
+        staff: sh.staff.map(m => m.id !== staffId ? m : { ...m, breaks: [...m.breaks, br] }),
+      }),
+    }));
+    get().saveToStore();
+  },
+
+  updateStaffBreak: (showId, staffId, breakId, minutes) => {
+    set(s => ({
+      shows: s.shows.map(sh => sh.id !== showId ? sh : {
+        ...sh,
+        staff: sh.staff.map(m => m.id !== staffId ? m : {
+          ...m, breaks: m.breaks.map(b => b.id !== breakId ? b : { ...b, minutes }),
+        }),
+      }),
+    }));
+    get().saveToStore();
+  },
+
+  removeStaffBreak: (showId, staffId, breakId) => {
+    set(s => ({
+      shows: s.shows.map(sh => sh.id !== showId ? sh : {
+        ...sh,
+        staff: sh.staff.map(m => m.id !== staffId ? m : {
+          ...m, breaks: m.breaks.filter(b => b.id !== breakId),
+        }),
       }),
     }));
     get().saveToStore();

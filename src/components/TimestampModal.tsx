@@ -2,7 +2,13 @@ import { useState } from 'react';
 import { X, Clock, RotateCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BigTimePicker } from './TimePicker';
+import { formatTime } from '../utils/time';
 import type { TimeFormat } from '../types';
+
+export interface TimeSuggestion {
+  label: string;
+  iso: string;
+}
 
 interface Props {
   title: string;
@@ -12,6 +18,8 @@ interface Props {
   /** "yyyy-MM-dd" the chosen time is anchored to. */
   dateAnchor: string;
   format: TimeFormat;
+  /** Optional quick-pick times (e.g. copy from another staff member). */
+  suggestions?: TimeSuggestion[];
   onSave: (iso: string | null) => void;
   onClose: () => void;
 }
@@ -20,7 +28,7 @@ interface Props {
  * Generic clock-time editor for a standalone timestamp (staff arrival/leave,
  * client arrival/departure). Anchors the chosen HH:MM:SS to `dateAnchor`.
  */
-export default function TimestampModal({ title, subtitle, value, dateAnchor, format, onSave, onClose }: Props) {
+export default function TimestampModal({ title, subtitle, value, dateAnchor, format, suggestions, onSave, onClose }: Props) {
   const current = value ? new Date(value) : new Date();
   const [hours, setHours] = useState(current.getHours());
   const [minutes, setMinutes] = useState(current.getMinutes());
@@ -31,6 +39,13 @@ export default function TimestampModal({ title, subtitle, value, dateAnchor, for
     setHours(now.getHours());
     setMinutes(now.getMinutes());
     setSeconds(now.getSeconds());
+  }
+
+  function applyIso(iso: string) {
+    const d = new Date(iso);
+    setHours(d.getHours());
+    setMinutes(d.getMinutes());
+    setSeconds(d.getSeconds());
   }
 
   function handleSave() {
@@ -77,6 +92,23 @@ export default function TimestampModal({ title, subtitle, value, dateAnchor, for
                 <RotateCcw className="w-3.5 h-3.5" />
                 Use Current Time
               </button>
+
+              {suggestions && suggestions.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-slate-600 mb-1.5">Copy from</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {suggestions.map((sg, i) => (
+                      <button
+                        key={i}
+                        onClick={() => applyIso(sg.iso)}
+                        className="px-2.5 py-1.5 rounded-lg border border-show-border hover:border-amber-500/40 text-xs text-slate-400 hover:text-amber-300 transition-colors"
+                      >
+                        {sg.label} · <span className="font-mono">{formatTime(sg.iso, format)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-2">
                 {value && (

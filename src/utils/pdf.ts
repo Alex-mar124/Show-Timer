@@ -2,7 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import type { Show, Run, TimeFormat } from '../types';
-import { getElapsedMs, getShowTimeWindowMs, getNonShowTimeMs } from '../types';
+import { getElapsedMs, getShowTimeWindowMs, getNonShowTimeMs, staffBreakMinutes, staffWorkedMs } from '../types';
 import { formatTime, formatDuration, formatDateLong, formatDateShort } from './time';
 
 // Colour palette (RGB)
@@ -163,22 +163,28 @@ export function generatePDF(show: Show, timeFormat: TimeFormat): void {
     autoTable(doc, {
       startY: y,
       margin: { left: MARGIN, right: MARGIN },
-      head: [['Name', 'Role', 'In', 'Out', 'Hours']],
-      body: show.staff.map(m => [
-        m.name || '—', m.role || '—',
-        formatTime(m.arrival, timeFormat),
-        formatTime(m.departure, timeFormat),
-        (() => { const s = span(m.arrival, m.departure); return s !== null ? formatDuration(s) : '—'; })(),
-      ]),
+      head: [['Name', 'Role', 'In', 'Out', 'Breaks', 'Net Hours']],
+      body: show.staff.map(m => {
+        const bm = staffBreakMinutes(m);
+        const net = staffWorkedMs(m);
+        return [
+          m.name || '—', m.role || '—',
+          formatTime(m.arrival, timeFormat),
+          formatTime(m.departure, timeFormat),
+          m.breaks.length > 0 ? `${m.breaks.length} · ${bm}m` : '—',
+          net !== null ? formatDuration(net) : '—',
+        ];
+      }),
       theme: 'grid',
       headStyles: { fillColor: C.mid, textColor: C.white, fontStyle: 'bold', fontSize: 8, cellPadding: 3 },
       bodyStyles: { fontSize: 8.5, cellPadding: 3, textColor: C.dark },
       alternateRowStyles: { fillColor: C.light },
       columnStyles: {
-        0: { cellWidth: 50, fontStyle: 'bold' },
+        0: { cellWidth: 42, fontStyle: 'bold' },
         2: { halign: 'center', font: 'courier' },
         3: { halign: 'center', font: 'courier' },
-        4: { halign: 'center', font: 'courier' },
+        4: { halign: 'center' },
+        5: { halign: 'center', font: 'courier', fontStyle: 'bold' },
       },
     });
     y = lastTableY(doc, y) + 8;
@@ -243,6 +249,145 @@ export function generatePDF(show: Show, timeFormat: TimeFormat): void {
   footer(doc);
   const filename = `${(show.production || show.title).replace(/[^a-z0-9]/gi, '-')}-${show.date}.pdf`;
   doc.save(filename);
+}
+
+// ── Printable double-sided report (blank for handwriting) ─────────────────────
+
+/** Draw N ruled lines for handwritten input. Returns new y. */
+function ruledArea(doc: jsPDF, y: number, lines: number, gap = 9): number {
+  doc.setDrawColor(...C.border);
+  doc.setLineWidth(0.3);
+  for (let i = 0; i < lines; i++) {
+    y += gap;
+    doc.line(MARGIN, y, W - MARGIN, y);
+  }
+  return y + 4;
+}
+
+function timingTable(doc: jsPDF, show: Show, timeFormat: TimeFormat, y: number, now: Date): number {
+  y = sectionLabel(doc, 'Show Timing', y);
+  const segments = [...show.segments].sort((a, b) => a.order - b.order);
+  autoTable(doc, {
+    startY: y,
+    margin: { left: MARGIN, right: MARGIN },
+    head: [['Segment', 'Start', 'End', 'Duration']],
+    body: segments.map(seg => [
+      seg.label,
+      formatTime(seg.actualStart, timeFormat),
+      seg.type === 'show_end' ? '—' : formatTime(seg.actualEnd, timeFormat),
+      seg.actualStart && seg.type !== 'show_end' ? formatDuration(getElapsedMs(seg, now)) : '—',
+    ]),
+    theme: 'grid',
+    headStyles: { fillColor: C.mid, textColor: C.white, fontStyle: 'bold', fontSize: 8, cellPadding: 3.5 },
+    bodyStyles: { fontSize: 8.5, cellPadding: 3.5, textColor: C.dark },
+    alternateRowStyles: { fillColor: C.light },
+    columnStyles: {
+      0: { cellWidth: 70, fontStyle: 'bold' },
+      1: { halign: 'center', font: 'courier' },
+      2: { halign: 'center', font: 'courier' },
+      3: { halign: 'center', font: 'courier' },
+    },
+  });
+  return lastTableY(doc, y) + 8;
+}
+
+function totalsRow(doc: jsPDF, show: Show, y: number, now: Date): number {
+  const half = (W - MARGIN * 2 - 4) / 2;
+  statCard(doc, MARGIN, half, y, 'Time in show (doors → finish)', formatDuration(getShowTimeWindowMs(show, now)), C.amber);
+  statCard(doc, MARGIN + half + 4, half, y, 'Time not in show', formatDuration(getNonShowTimeMs(show, now)), C.slate);
+  return y + 22;
+}
+
+/**
+ * Two-page printable report: page 1 is the client copy (blank comment +
+ * signature space), page 2 is the tech copy (tech comments). Both carry the
+ * same timing summary so either side stands alone. Print double-sided.
+ */
+export function generatePrintablePDF(show: Show, timeFormat: TimeFormat): void {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const now = new Date();
+  const title = show.production || show.title;
+  const sub = show.title && show.title !== show.production ? show.title : null;
+
+  // ── Page 1 — CLIENT COPY ───────────────────────────────────────────────────
+  let y = header(doc, 'CLIENT COPY', title, sub, formatDateLong(show.date));
+
+  y = sectionLabel(doc, 'Client Access', y) + 1;
+  const half = (W - MARGIN * 2 - 4) / 2;
+  statCard(doc, MARGIN, half, y, 'Arrival', formatTime(show.clientArrival, timeFormat), C.green);
+  statCard(doc, MARGIN + half + 4, half, y, 'Departure', formatTime(show.clientDeparture, timeFormat), C.rose);
+  y += 22;
+
+  y = timingTable(doc, show, timeFormat, y, now);
+  y = totalsRow(doc, show, y, now);
+
+  y = ensureSpace(doc, y, 50);
+  y = sectionLabel(doc, 'Client Comments', y);
+  y = ruledArea(doc, y, 4);
+
+  y += 6;
+  y = sectionLabel(doc, 'Client Signature', y) + 6;
+  doc.setDrawColor(...C.slate); doc.setLineWidth(0.4);
+  doc.line(MARGIN, y + 6, MARGIN + 80, y + 6);
+  doc.line(W - MARGIN - 55, y + 6, W - MARGIN, y + 6);
+  doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.slate);
+  doc.text('Signed', MARGIN, y + 11);
+  doc.text('Date', W - MARGIN - 55, y + 11);
+
+  // ── Page 2 — TECH COPY ─────────────────────────────────────────────────────
+  doc.addPage();
+  y = header(doc, 'TECH COPY', title, sub, formatDateLong(show.date));
+
+  if (show.staff.length > 0) {
+    y = sectionLabel(doc, 'Staff', y);
+    autoTable(doc, {
+      startY: y,
+      margin: { left: MARGIN, right: MARGIN },
+      head: [['Name', 'Role', 'In', 'Out', 'Breaks', 'Net Hours']],
+      body: show.staff.map(m => {
+        const net = staffWorkedMs(m);
+        return [
+          m.name || '—', m.role || '—',
+          formatTime(m.arrival, timeFormat), formatTime(m.departure, timeFormat),
+          m.breaks.length > 0 ? `${m.breaks.length} · ${staffBreakMinutes(m)}m` : '—',
+          net !== null ? formatDuration(net) : '—',
+        ];
+      }),
+      theme: 'grid',
+      headStyles: { fillColor: C.mid, textColor: C.white, fontStyle: 'bold', fontSize: 8, cellPadding: 3 },
+      bodyStyles: { fontSize: 8.5, cellPadding: 3, textColor: C.dark },
+      alternateRowStyles: { fillColor: C.light },
+      columnStyles: {
+        0: { cellWidth: 42, fontStyle: 'bold' },
+        2: { halign: 'center', font: 'courier' }, 3: { halign: 'center', font: 'courier' },
+        4: { halign: 'center' }, 5: { halign: 'center', font: 'courier', fontStyle: 'bold' },
+      },
+    });
+    y = lastTableY(doc, y) + 8;
+  }
+
+  y = timingTable(doc, show, timeFormat, y, now);
+  y = totalsRow(doc, show, y, now);
+
+  y = sectionLabel(doc, 'Tech Comments', y);
+  if (show.techNotes?.trim()) {
+    const lines = doc.splitTextToSize(show.techNotes, W - MARGIN * 2 - 8);
+    const h = Math.max(24, lines.length * 5 + 8);
+    doc.setFillColor(...C.light); doc.setDrawColor(...C.border);
+    doc.roundedRect(MARGIN, y, W - MARGIN * 2, h, 2, 2, 'FD');
+    doc.setFillColor(...C.amber); doc.rect(MARGIN, y, 2.5, h, 'F');
+    doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.dark);
+    doc.text(lines, MARGIN + 6, y + 6);
+  } else {
+    ruledArea(doc, y, 4);
+  }
+
+  footer(doc);
+  doc.save(`${safeName(title)}-${show.date}-printable.pdf`);
+}
+
+function safeName(s: string): string {
+  return (s || 'show').replace(/[^a-z0-9]/gi, '-');
 }
 
 // ── Combined run report ───────────────────────────────────────────────────────

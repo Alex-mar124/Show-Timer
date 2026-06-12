@@ -96,12 +96,51 @@ export interface Segment {
   order: number;
 }
 
+export interface StaffBreak {
+  id: string;
+  minutes: number;
+}
+
 export interface StaffMember {
   id: string;
   name: string;
   role: string;
   arrival: string | null;    // ISO timestamp
   departure: string | null;  // ISO timestamp
+  breaks: StaffBreak[];
+}
+
+/** Common theatre staff roles for the role autofill. */
+export const COMMON_ROLES = [
+  'Supervisor',
+  'Stage Manager',
+  'Deputy Stage Manager',
+  'Assistant Stage Manager',
+  'Lighting',
+  'Lighting Op',
+  'Sound',
+  'Sound Op',
+  'Stage',
+  'Stage Crew',
+  'Spot Op',
+  'Followspot',
+  'Flys',
+  'Rigger',
+  'Wardrobe',
+  'Automation',
+] as const;
+
+/** Total break minutes for a staff member. */
+export function staffBreakMinutes(m: StaffMember): number {
+  return (m.breaks ?? []).reduce((acc, b) => acc + (b.minutes || 0), 0);
+}
+
+/** Gross worked ms (arrival→departure) minus break time; null if incomplete. */
+export function staffWorkedMs(m: StaffMember): number | null {
+  if (!m.arrival || !m.departure) return null;
+  const gross = new Date(m.departure).getTime() - new Date(m.arrival).getTime();
+  if (gross < 0) return null;
+  return Math.max(0, gross - staffBreakMinutes(m) * 60_000);
 }
 
 export interface Show {
@@ -143,7 +182,11 @@ export function normalizeShow(raw: Partial<Show> & { id: string }): Show {
     segments: (raw.segments ?? []).map(normalizeSegment),
     notes: raw.notes ?? '',
     techNotes: raw.techNotes ?? '',
-    staff: raw.staff ?? [],
+    staff: (raw.staff ?? []).map(m => ({
+      id: m.id, name: m.name ?? '', role: m.role ?? '',
+      arrival: m.arrival ?? null, departure: m.departure ?? null,
+      breaks: m.breaks ?? [],
+    })),
     clientArrival: raw.clientArrival ?? null,
     clientDeparture: raw.clientDeparture ?? null,
     clientComments: raw.clientComments ?? '',

@@ -1,10 +1,10 @@
-import { FileDown, FileText, Files, Clock, Users, DoorOpen, Share2, Package } from 'lucide-react';
+import { FileDown, FileText, Files, Clock, Users, DoorOpen, Share2, Package, Printer } from 'lucide-react';
 import { useShowStore } from '../store';
 import { useClock } from '../hooks/useClock';
 import type { Show, Run } from '../types';
 import { resolveReportFormat, getShowTimeWindowMs, getNonShowTimeMs } from '../types';
 import { formatDuration, formatTime } from '../utils/time';
-import { generatePDF, generateRunReportPDF, generateAllRunReports } from '../utils/pdf';
+import { generatePDF, generatePrintablePDF, generateRunReportPDF, generateAllRunReports } from '../utils/pdf';
 import { exportShow, exportRun } from '../utils/exchange';
 import SignaturePad from './SignaturePad';
 
@@ -96,6 +96,15 @@ export default function ReportTab({ show, run, runShows }: Props) {
         >
           <FileDown className="w-4 h-4" />
           Download Show Report (PDF)
+        </button>
+
+        <button
+          onClick={() => generatePrintablePDF(show, reportFormat)}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-show-border hover:border-amber-500/30 text-slate-400 hover:text-amber-400 font-semibold text-sm transition-all"
+          title="Two-page double-sided: client copy + tech copy, with space to sign on paper"
+        >
+          <Printer className="w-4 h-4" />
+          Printable (2-sided: client + tech)
         </button>
 
         {run && runShows.length > 1 && (

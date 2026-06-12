@@ -27,8 +27,12 @@ function seg(type: SegmentType, label: string, order: number, opts: Partial<Segm
   };
 }
 
-function staff(name: string, role: string, date: string, inH: number, inM: number, outH: number, outM: number): StaffMember {
-  return { id: uid(), name, role, arrival: at(date, inH, inM), departure: at(date, outH, outM) };
+function staff(name: string, role: string, date: string, inH: number, inM: number, outH: number, outM: number, breakMins: number[] = []): StaffMember {
+  return {
+    id: uid(), name, role,
+    arrival: at(date, inH, inM), departure: at(date, outH, outM),
+    breaks: breakMins.map(minutes => ({ id: uid(), minutes })),
+  };
 }
 
 /**
@@ -65,9 +69,9 @@ export function buildSeedData(): { runs: Run[]; shows: Show[] } {
     notes: 'Smooth opening night.',
     techNotes: 'Followspot 2 intermittent in Act 1 — flagged to electrics. DSM on book throughout.',
     staff: [
-      staff('Alex Martin', 'Stage Manager', d1, 13, 30, 23, 30),
-      staff('Jordan Lee', 'LX Op', d1, 14, 0, 23, 15),
-      staff('Sam Okafor', 'Sound No.1', d1, 14, 0, 23, 0),
+      staff('Alex Martin', 'Stage Manager', d1, 13, 30, 23, 30, [30, 15]),
+      staff('Jordan Lee', 'Lighting Op', d1, 14, 0, 23, 15, [45]),
+      staff('Sam Okafor', 'Sound Op', d1, 14, 0, 23, 0, [30]),
     ],
     clientArrival: at(d1, 13, 0),
     clientDeparture: at(d1, 23, 30),
