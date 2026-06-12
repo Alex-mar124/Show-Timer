@@ -113,6 +113,7 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
   const [notesOpen,    setNotesOpen]    = useState(false);
   const [editingLabel, setEditingLabel] = useState(false);
   const [labelVal,     setLabelVal]     = useState(segment.label);
+  const [plannedField, setPlannedField] = useState<'plannedStart' | 'plannedEnd' | null>(null);
 
   const expectedMs  = segment.expectedDurationMinutes ? segment.expectedDurationMinutes * 60_000 : null;
   const overUnderMs = expectedMs !== null && status !== 'pending' ? elapsedMs - expectedMs : null;
@@ -289,43 +290,90 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
           </div>
 
           {/* ── Planned schedule row (qualifying types only) ─────────────────── */}
-          {showSchedule && (
-            <div className="flex items-center gap-2 mt-2 pl-[46px] flex-wrap">
-              <Clock className="w-3 h-3 text-slate-600 shrink-0" />
-              <div className="flex items-center gap-1">
-                <span className="text-[9px] text-slate-600 uppercase tracking-wider mr-0.5">Start</span>
-                <InlineHmPicker
-                  value={segment.plannedStart ?? ''}
-                  format={timeFormat}
-                  onChange={v => updateSegmentSchedule(showId, segment.id, 'plannedStart', v || null)}
-                />
+          {showSchedule && (() => {
+            const fmtPlanned = (hm: string | null) => {
+              if (!hm) return null;
+              const [h, m] = hm.split(':').map(Number);
+              const d = new Date(); d.setHours(h, m, 0, 0);
+              return formatTime(d, timeFormat);
+            };
+            const plannedDiff = (() => {
+              if (!segment.plannedStart || !segment.plannedEnd) return null;
+              const [sh, sm] = segment.plannedStart.split(':').map(Number);
+              const [eh, em] = segment.plannedEnd.split(':').map(Number);
+              let diffMin = (eh * 60 + em) - (sh * 60 + sm);
+              if (diffMin < 0) diffMin += 1440;
+              if (diffMin <= 0) return null;
+              const h = Math.floor(diffMin / 60), m = diffMin % 60;
+              return `${h > 0 ? `${h}h ` : ''}${m > 0 ? `${m}m` : ''}`.trim();
+            })();
+
+            const PlannedBtn = ({ field, label }: { field: 'plannedStart' | 'plannedEnd'; label: string }) => {
+              const val = segment[field];
+              const open = plannedField === field;
+              return (
+                <button
+                  onClick={() => setPlannedField(open ? null : field)}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs transition-colors ${
+                    open ? 'border-amber-500/50 bg-amber-500/5' : 'border-show-border hover:border-slate-600'
+                  }`}
+                  title={`Planned ${label.toLowerCase()}`}
+                >
+                  <span className="text-[9px] text-slate-600 uppercase tracking-wider">{label}</span>
+                  <span className={`font-mono tabular ${val ? 'text-slate-300' : 'text-slate-600'}`}>
+                    {fmtPlanned(val) ?? 'set'}
+                  </span>
+                </button>
+              );
+            };
+
+            return (
+              <div className="mt-2 pl-[46px]">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Clock className="w-3 h-3 text-slate-600 shrink-0" />
+                  <PlannedBtn field="plannedStart" label="Start" />
+                  <span className="text-slate-700 text-xs">→</span>
+                  <PlannedBtn field="plannedEnd" label="End" />
+                  {plannedDiff && <span className="text-[10px] text-slate-600">{plannedDiff}</span>}
+                </div>
+                <AnimatePresence>
+                  {plannedField && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.16 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="flex items-center gap-2 mt-2 p-2 rounded-lg bg-show-surface border border-show-border w-fit">
+                        <InlineHmPicker
+                          value={segment[plannedField] ?? ''}
+                          format={timeFormat}
+                          onChange={v => updateSegmentSchedule(showId, segment.id, plannedField, v || null)}
+                        />
+                        <div className="flex flex-col gap-1 ml-1">
+                          {segment[plannedField] && (
+                            <button
+                              onClick={() => updateSegmentSchedule(showId, segment.id, plannedField, null)}
+                              className="px-2 py-1 rounded text-[10px] text-slate-500 hover:text-red-400 border border-show-border transition-colors"
+                            >
+                              Clear
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setPlannedField(null)}
+                            className="px-2 py-1 rounded text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 transition-colors"
+                          >
+                            Done
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-              <span className="text-slate-700 text-xs">→</span>
-              <div className="flex items-center gap-1">
-                <span className="text-[9px] text-slate-600 uppercase tracking-wider mr-0.5">End</span>
-                <InlineHmPicker
-                  value={segment.plannedEnd ?? ''}
-                  format={timeFormat}
-                  onChange={v => updateSegmentSchedule(showId, segment.id, 'plannedEnd', v || null)}
-                />
-              </div>
-              {segment.plannedStart && segment.plannedEnd && (() => {
-                const [sh, sm] = segment.plannedStart.split(':').map(Number);
-                const [eh, em] = segment.plannedEnd.split(':').map(Number);
-                const diffMin = (eh * 60 + em) - (sh * 60 + sm);
-                if (diffMin > 0) {
-                  const h = Math.floor(diffMin / 60);
-                  const m = diffMin % 60;
-                  return (
-                    <span className="text-[10px] text-slate-600">
-                      {h > 0 ? `${h}h ` : ''}{m > 0 ? `${m}m` : ''}
-                    </span>
-                  );
-                }
-                return null;
-              })()}
-            </div>
-          )}
+            );
+          })()}
 
           {/* ── Second row: expected / over-under / back-at / actions ────────── */}
           <div className="flex items-center justify-between mt-2 pl-[46px]">
