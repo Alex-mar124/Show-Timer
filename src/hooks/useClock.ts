@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useShowStore } from '../store';
 
 export function useClock(): Date {
   const [now, setNow] = useState(() => new Date());
+  const offset = useShowStore(s => s.devClockOffsetMs);
 
   useEffect(() => {
     const tick = () => setNow(new Date());
@@ -18,5 +20,7 @@ export function useClock(): Date {
     };
   }, []);
 
-  return now;
+  // Apply the dev clock offset (0 in normal use) so dev-mode time-travel
+  // affects every elapsed/expected calculation that reads the clock.
+  return offset ? new Date(now.getTime() + offset) : now;
 }

@@ -1,4 +1,4 @@
-import { Bell, Clock, FileText } from 'lucide-react';
+import { Bell, Clock, FileText, Bug } from 'lucide-react';
 import { useShowStore } from '../store';
 import type { AppSettings } from '../types';
 
@@ -202,6 +202,28 @@ export default function SettingsView() {
               </div>
             </div>
           )}
+        </div>
+      </section>
+
+      {/* Developer */}
+      <section className="mb-8">
+        <div className="flex items-center gap-2 mb-4">
+          <Bug className="w-4 h-4 text-purple-400" />
+          <h3 className="text-sm font-semibold text-slate-300">Developer</h3>
+        </div>
+        <div className="bg-show-card rounded-xl border border-show-border p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-slate-300">Dev mode</p>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Floating panel to seed sample data, time-travel the clock, and inspect state
+              </p>
+            </div>
+            <Toggle
+              checked={settings.devMode}
+              onChange={v => set('devMode', v)}
+            />
+          </div>
         </div>
       </section>
     </div>

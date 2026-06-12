@@ -140,6 +140,8 @@ interface ShowStore {
   // Settings
   settings: AppSettings;
   initialized: boolean;
+  // Dev tooling
+  devClockOffsetMs: number;
 
   // Lifecycle
   initialize: () => Promise<void>;
@@ -153,6 +155,12 @@ interface ShowStore {
   completeShow: (id: string) => void;
   deleteShow: (id: string) => void;
   importBundle: (data: { runs: Run[]; shows: Show[] }) => { showCount: number; runCount: number };
+
+  // Dev tooling
+  bumpDevClock: (ms: number) => void;
+  resetDevClock: () => void;
+  seedDevData: () => void;
+  clearAllData: () => void;
 
   // People-face actions (v2)
   addStaff: (showId: string) => void;
@@ -261,11 +269,21 @@ export const useShowStore = create<ShowStore>((set, get) => ({
   toasts: [],
   settings: defaultSettings(),
   initialized: false,
+  devClockOffsetMs: 0,
   session: defaultSession(),
 
   initialize: async () => {
     const data = await loadTauriStore();
     set({ ...data, initialized: true });
+
+    // Honour CLI dev flags (--dev / --seed / --scenario=…); no-op in browser.
+    const flags = await invokeTauri<{ dev: boolean; seed: boolean; scenario?: string }>('dev_flags');
+    if (flags?.dev) {
+      set(s => ({ settings: { ...s.settings, devMode: true } }));
+    }
+    if (flags?.seed && get().shows.length === 0) {
+      get().seedDevData();
+    }
   },
 
   saveToStore: async () => {
@@ -360,6 +378,26 @@ export const useShowStore = create<ShowStore>((set, get) => ({
     }));
     get().saveToStore();
     return { showCount: newShows.length, runCount: newRuns.length };
+  },
+
+  // ── Dev tooling ─────────────────────────────────────────────────────────────
+
+  bumpDevClock: (ms) => set(s => ({ devClockOffsetMs: s.devClockOffsetMs + ms })),
+  resetDevClock: () => set({ devClockOffsetMs: 0 }),
+
+  seedDevData: () => {
+    // Lazy import to keep seed data out of the production bundle's hot path.
+    import('../utils/devSeed').then(({ buildSeedData }) => {
+      const { runs, shows } = buildSeedData();
+      get().importBundle({ runs, shows });
+      get().addToast({ title: 'Dev data seeded', message: `${shows.length} shows`, type: 'success' });
+    });
+  },
+
+  clearAllData: () => {
+    set({ shows: [], runs: [], currentShowId: null, devClockOffsetMs: 0 });
+    get().saveToStore();
+    get().addToast({ title: 'All data cleared', message: 'Shows and runs removed', type: 'warning' });
   },
 
   // ── People-face actions (v2) ────────────────────────────────────────────────

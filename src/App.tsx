@@ -11,6 +11,7 @@ import RunSetupModal from './components/RunSetupModal';
 import ToastContainer from './components/ToastContainer';
 import SessionButton from './components/SessionButton';
 import SessionPanel from './components/SessionPanel';
+import DevPanel from './components/DevPanel';
 import { schedulePreShowNotifications } from './utils/notifications';
 import { formatDateShort } from './utils/time';
 import { pickFile, parseBundle } from './utils/exchange';
@@ -299,6 +300,7 @@ export default function App() {
       <ShowSetupModal />
       <RunSetupModal />
       <AnimatePresence>{session.panelOpen && <SessionPanel />}</AnimatePresence>
+      {settings.devMode && <DevPanel />}
       <ToastContainer />
     </div>
   );

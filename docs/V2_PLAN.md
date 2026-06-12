@@ -105,11 +105,15 @@ Migration: `normalizeShow()` in `loadTauriStore()` fills new fields on old saved
 
 > Manager preset "both" delivery: **file** = Export Preset → Import File. **session** = existing whole-run sync (host builds preset, staff join and press Start).
 
-### Phase 7 — Dev mode + interface redesign + polish ⬜
-- ⬜ CLI flags in `main.rs`/`lib.rs`: `--dev`, `--seed`, `--scenario=<name>`.
-- ⬜ Dev panel (gated by `devMode`): seed preset shows, jump clock, simulate peer, dump/log sync traffic; verbose sync logging.
-- ⬜ Interface redesign around People / Run Sheet / Report tabs; fix mixed pre/show/post list confusion.
-- ⬜ General bug + visual sweep; expose more custom settings.
+### Phase 7 — Dev mode + interface redesign + polish ✅ (core)
+- ✅ Rust `dev.rs`: parses `--dev` / `--seed` / `--scenario=<name>`, `dev_flags` command; wired in `lib.rs`. Store `initialize` reads flags → enables devMode / seeds on first run. (cargo check passes.)
+- ✅ `DevPanel` (gated by `settings.devMode`): clock-travel (±5m/±1h/reset), seed sample data, dump state to console, clear all data, live counts. Settings → Developer toggle.
+- ✅ Dev clock offset in store (`devClockOffsetMs`, `bumpDevClock`/`resetDevClock`); `useClock` applies it so all elapsed/expected math time-travels.
+- ✅ `utils/devSeed.ts`: realistic dataset (2-night Macbeth run — Night 1 fully run w/ staff+client+comments, Night 2 planned; standalone tech rehearsal).
+- ✅ Interface: People/Run Sheet/Report tabs (Phase 4–5) resolved the mixed-list confusion; compact planned-time rows fixed.
+- ✅ Verified in browser: seed loads 3 shows/1 run, clock-travel offsets, Report shows correct in-show/staff/comments.
+
+Remaining nice-to-haves (not blocking): verbose sync-packet logging, peer simulator, scenario presets beyond default.
 
 ## Notes / ideas worth adding as we go
 - Clock-jump dev tool needs a global "now" injection (currently `useClock` reads real `new Date()`); add a dev clock offset in the store that `useClock` and timing helpers respect.

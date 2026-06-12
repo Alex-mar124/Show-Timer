@@ -1,7 +1,10 @@
 mod session;
+mod dev;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+  dev::parse_flags();
+
   tauri::Builder::default()
     .plugin(tauri_plugin_store::Builder::new().build())
     .plugin(tauri_plugin_notification::init())
@@ -14,6 +17,7 @@ pub fn run() {
       session::leave_session,
       session::scan_for_sessions,
       session::get_session_info,
+      dev::dev_flags,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
