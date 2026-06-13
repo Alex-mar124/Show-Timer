@@ -292,6 +292,44 @@ export function getProductionSegmentMs(show: Show, now: Date): number {
     .reduce((acc, s) => acc + getElapsedMs(s, now), 0);
 }
 
+// ── Client access (auto-derived from segments unless set manually) ────────────
+
+/** Earliest actualStart across all segments, or null. */
+export function derivedClientArrival(show: Show): string | null {
+  let earliest: number | null = null;
+  for (const s of show.segments) {
+    if (s.actualStart) {
+      const t = new Date(s.actualStart).getTime();
+      if (earliest === null || t < earliest) earliest = t;
+    }
+  }
+  return earliest !== null ? new Date(earliest).toISOString() : null;
+}
+
+/** Show-finish timestamp, else latest actualEnd across segments, or null. */
+export function derivedClientDeparture(show: Show): string | null {
+  const showEnd = show.segments.find(s => s.type === 'show_end');
+  if (showEnd?.actualStart) return showEnd.actualStart;
+  let latest: number | null = null;
+  for (const s of show.segments) {
+    if (s.actualEnd) {
+      const t = new Date(s.actualEnd).getTime();
+      if (latest === null || t > latest) latest = t;
+    }
+  }
+  return latest !== null ? new Date(latest).toISOString() : null;
+}
+
+/** Manual client arrival if set, otherwise the auto-derived value. */
+export function effectiveClientArrival(show: Show): string | null {
+  return show.clientArrival ?? derivedClientArrival(show);
+}
+
+/** Manual client departure if set, otherwise the auto-derived value. */
+export function effectiveClientDeparture(show: Show): string | null {
+  return show.clientDeparture ?? derivedClientDeparture(show);
+}
+
 // ── v2 billable-time accounting ───────────────────────────────────────────────
 // "Show time" = the window the audience/client is in for the performance:
 // doors open → show finish (doors counted as show time).

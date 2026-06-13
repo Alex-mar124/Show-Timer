@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { UserPlus, Trash2, Clock, Users, DoorOpen, DoorClosed, Coffee, Plus, X } from 'lucide-react';
 import { useShowStore } from '../store';
 import type { Show, TimeFormat, StaffMember } from '../types';
-import { COMMON_ROLES, staffBreakMinutes, staffWorkedMs } from '../types';
+import { COMMON_ROLES, staffBreakMinutes, staffWorkedMs, derivedClientArrival, derivedClientDeparture, effectiveClientArrival, effectiveClientDeparture } from '../types';
 import { formatTime, formatDuration, formatDurationShort } from '../utils/time';
 import TimestampModal, { type TimeSuggestion } from './TimestampModal';
 
@@ -18,11 +18,14 @@ function spanMs(a: string | null, b: string | null): number | null {
 }
 
 // ── A clock-time cell that opens the timestamp modal ──────────────────────────
+// `auto` is an optional fallback time used when no manual value is set (e.g.
+// client access derived from the first/last segment). Shows an "auto" badge.
 function TimeCell({
-  label, value, dateAnchor, format, suggestions, onSave, accent = 'amber',
+  label, value, auto, dateAnchor, format, suggestions, onSave, accent = 'amber',
 }: {
   label: string;
   value: string | null;
+  auto?: string | null;
   dateAnchor: string;
   format: TimeFormat;
   suggestions?: TimeSuggestion[];
@@ -30,26 +33,31 @@ function TimeCell({
   accent?: 'amber' | 'green' | 'rose';
 }) {
   const [open, setOpen] = useState(false);
+  const isAuto = !value && !!auto;
+  const shown = value ?? auto ?? null;
   const accentCls = value
     ? accent === 'green' ? 'text-green-300 border-green-500/30'
       : accent === 'rose' ? 'text-rose-300 border-rose-500/30'
       : 'text-amber-300 border-amber-500/30'
-    : 'text-slate-600 border-show-border border-dashed';
+    : isAuto ? 'text-slate-400 border-show-border'
+      : 'text-slate-600 border-show-border border-dashed';
 
   return (
     <>
       <button
         onClick={() => setOpen(true)}
         className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border bg-show-surface hover:bg-show-hover transition-colors font-mono text-sm tabular ${accentCls}`}
-        title={`Set ${label.toLowerCase()}`}
+        title={isAuto ? 'Auto from segments — click to override' : `Set ${label.toLowerCase()}`}
       >
         <Clock className="w-3 h-3 opacity-60" />
-        {value ? formatTime(value, format) : '--:--'}
+        {shown ? formatTime(shown, format) : '--:--'}
+        {isAuto && <span className="text-[9px] font-sans uppercase tracking-wider text-slate-600 not-italic">auto</span>}
       </button>
       {open && (
         <TimestampModal
           title={label}
-          value={value}
+          subtitle={isAuto ? 'Currently auto from segments' : undefined}
+          value={shown}
           dateAnchor={dateAnchor}
           format={format}
           suggestions={suggestions}
@@ -130,13 +138,15 @@ function BreaksEditor({ show, member }: { show: Show; member: StaffMember }) {
 export default function PeoplePanel({ show, timeFormat }: Props) {
   const { addStaff, updateStaff, removeStaff, setClientTime } = useShowStore();
 
-  const clientOnSite = spanMs(show.clientArrival, show.clientDeparture);
+  const clientOnSite = spanMs(effectiveClientArrival(show), effectiveClientDeparture(show));
+  const autoArrival = derivedClientArrival(show);
+  const autoDeparture = derivedClientDeparture(show);
 
   // Build "copy from" suggestions for staff time cells: client + other staff times.
   function suggestionsFor(member: StaffMember, field: 'arrival' | 'departure'): TimeSuggestion[] {
     const out: TimeSuggestion[] = [];
-    if (field === 'arrival' && show.clientArrival) out.push({ label: 'Client in', iso: show.clientArrival });
-    if (field === 'departure' && show.clientDeparture) out.push({ label: 'Client out', iso: show.clientDeparture });
+    if (field === 'arrival' && effectiveClientArrival(show)) out.push({ label: 'Client in', iso: effectiveClientArrival(show)! });
+    if (field === 'departure' && effectiveClientDeparture(show)) out.push({ label: 'Client out', iso: effectiveClientDeparture(show)! });
     for (const m of show.staff) {
       if (m.id === member.id) continue;
       const iso = m[field];
@@ -167,6 +177,7 @@ export default function PeoplePanel({ show, timeFormat }: Props) {
             <TimeCell
               label="Client Arrival"
               value={show.clientArrival}
+              auto={autoArrival}
               dateAnchor={show.date}
               format={timeFormat}
               accent="green"
@@ -180,6 +191,7 @@ export default function PeoplePanel({ show, timeFormat }: Props) {
             <TimeCell
               label="Client Departure"
               value={show.clientDeparture}
+              auto={autoDeparture}
               dateAnchor={show.date}
               format={timeFormat}
               accent="rose"

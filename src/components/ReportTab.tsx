@@ -2,9 +2,9 @@ import { FileDown, FileText, Files, Clock, Users, DoorOpen, Share2, Package, Pri
 import { useShowStore } from '../store';
 import { useClock } from '../hooks/useClock';
 import type { Show, Run } from '../types';
-import { resolveReportFormat, getShowTimeWindowMs, getNonShowTimeMs } from '../types';
+import { resolveReportFormat, getShowTimeWindowMs, getNonShowTimeMs, effectiveClientArrival, effectiveClientDeparture } from '../types';
 import { formatDuration, formatTime } from '../utils/time';
-import { generatePDF, generatePrintablePDF, generateRunReportPDF, generateAllRunReports } from '../utils/pdf';
+import { generatePDF, generatePrintablePDF, generateRunReportPDF, generateRunPrintablePDF, generateAllRunReports } from '../utils/pdf';
 import { exportShow, exportRun } from '../utils/exchange';
 import SignaturePad from './SignaturePad';
 
@@ -38,7 +38,9 @@ export default function ReportTab({ show, run, runShows }: Props) {
 
   const showMs = getShowTimeWindowMs(show, now);
   const nonShowMs = getNonShowTimeMs(show, now);
-  const onSite = span(show.clientArrival, show.clientDeparture);
+  const cArr = effectiveClientArrival(show);
+  const cDep = effectiveClientDeparture(show);
+  const onSite = span(cArr, cDep);
 
   return (
     <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
@@ -52,7 +54,7 @@ export default function ReportTab({ show, run, runShows }: Props) {
           <Stat label="Staff" value={String(show.staff.length)} color="text-slate-300" Icon={Users} />
         </div>
         <p className="text-[11px] text-slate-600 mt-2">
-          Client {formatTime(show.clientArrival, reportFormat)} → {formatTime(show.clientDeparture, reportFormat)} ·
+          Client {formatTime(cArr, reportFormat)} → {formatTime(cDep, reportFormat)} ·
           Report clock: {reportFormat === '12h' ? '12-hour' : '24-hour'}
           {settings.reportTimeFormat === 'match' ? ' (matches interface)' : ''}
         </p>
@@ -117,8 +119,16 @@ export default function ReportTab({ show, run, runShows }: Props) {
               Combined Run Summary
             </button>
             <button
+              onClick={() => generateRunPrintablePDF(run, runShows, reportFormat)}
+              className="flex items-center justify-center gap-2 py-2.5 rounded-lg border border-show-border hover:border-amber-500/30 text-slate-400 hover:text-amber-400 font-semibold text-sm transition-all"
+              title="Two-page double-sided run summary: client copy with signature + tech copy"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              Run Summary (printable)
+            </button>
+            <button
               onClick={() => generateAllRunReports(runShows, reportFormat)}
-              className="flex items-center justify-center gap-2 py-2.5 rounded-lg border border-show-border hover:border-slate-600 text-slate-400 hover:text-slate-200 font-semibold text-sm transition-all"
+              className="col-span-2 flex items-center justify-center gap-2 py-2.5 rounded-lg border border-show-border hover:border-slate-600 text-slate-400 hover:text-slate-200 font-semibold text-sm transition-all"
             >
               <Files className="w-3.5 h-3.5" />
               All Individual Reports

@@ -2,7 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import type { Show, Run, TimeFormat } from '../types';
-import { getElapsedMs, getShowTimeWindowMs, getNonShowTimeMs, staffBreakMinutes, staffWorkedMs } from '../types';
+import { getElapsedMs, getShowTimeWindowMs, getNonShowTimeMs, staffBreakMinutes, staffWorkedMs, effectiveClientArrival, effectiveClientDeparture } from '../types';
 import { formatTime, formatDuration, formatDateLong, formatDateShort } from './time';
 
 // Colour palette (RGB)
@@ -146,10 +146,12 @@ export function generatePDF(show: Show, timeFormat: TimeFormat): void {
   // ─── Client access ─────────────────────────────────────────────────────────
   y = sectionLabel(doc, 'Client Access', y) + 1;
   const half = (W - MARGIN * 2 - 4) / 2;
-  statCard(doc, MARGIN, half, y, 'Arrival', formatTime(show.clientArrival, timeFormat), C.green);
-  statCard(doc, MARGIN + half + 4, half, y, 'Departure', formatTime(show.clientDeparture, timeFormat), C.rose);
+  const cArr = effectiveClientArrival(show);
+  const cDep = effectiveClientDeparture(show);
+  statCard(doc, MARGIN, half, y, 'Arrival', formatTime(cArr, timeFormat), C.green);
+  statCard(doc, MARGIN + half + 4, half, y, 'Departure', formatTime(cDep, timeFormat), C.rose);
   y += 20;
-  const onSite = span(show.clientArrival, show.clientDeparture);
+  const onSite = span(cArr, cDep);
   if (onSite !== null) {
     doc.setFontSize(8.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.slate);
     doc.text(`Client on site: ${formatDuration(onSite)}`, MARGIN, y);
@@ -314,8 +316,8 @@ export function generatePrintablePDF(show: Show, timeFormat: TimeFormat): void {
 
   y = sectionLabel(doc, 'Client Access', y) + 1;
   const half = (W - MARGIN * 2 - 4) / 2;
-  statCard(doc, MARGIN, half, y, 'Arrival', formatTime(show.clientArrival, timeFormat), C.green);
-  statCard(doc, MARGIN + half + 4, half, y, 'Departure', formatTime(show.clientDeparture, timeFormat), C.rose);
+  statCard(doc, MARGIN, half, y, 'Arrival', formatTime(effectiveClientArrival(show), timeFormat), C.green);
+  statCard(doc, MARGIN + half + 4, half, y, 'Departure', formatTime(effectiveClientDeparture(show), timeFormat), C.rose);
   y += 22;
 
   y = timingTable(doc, show, timeFormat, y, now);
@@ -406,34 +408,23 @@ function staffWindow(show: Show): { first: string | null; last: string | null } 
   };
 }
 
-export function generateRunReportPDF(run: Run, runShows: Show[], timeFormat: TimeFormat): void {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const now = new Date();
-  const shows = [...runShows].sort((a, b) => a.date.localeCompare(b.date));
-
-  const dateRange = shows.length
-    ? `${formatDateShort(shows[0].date)} — ${formatDateShort(shows[shows.length - 1].date)}`
-    : '';
-
-  let y = header(doc, 'RUN SUMMARY REPORT', run.name || run.production, run.venue || null, dateRange);
-
-  // ─── Per-day table ─────────────────────────────────────────────────────────
+/** Daily breakdown table + run totals. Returns y after the totals block. */
+function runSummaryBody(doc: jsPDF, run: Run, shows: Show[], timeFormat: TimeFormat, y: number, now: Date): number {
   y = sectionLabel(doc, 'Daily Breakdown', y);
   let totalShow = 0;
   let totalNonShow = 0;
 
   const rows = shows.map((s, i) => {
     const showMs = getShowTimeWindowMs(s, now);
-    const nonShowMs = getNonShowTimeMs(s, now);
     totalShow += showMs;
-    totalNonShow += nonShowMs;
+    totalNonShow += getNonShowTimeMs(s, now);
     const sw = staffWindow(s);
     return [
       String(i + 1),
       formatDateShort(s.date),
       s.title || '—',
-      formatTime(s.clientArrival, timeFormat),
-      formatTime(s.clientDeparture, timeFormat),
+      formatTime(effectiveClientArrival(s), timeFormat),
+      formatTime(effectiveClientDeparture(s), timeFormat),
       formatTime(sw.first, timeFormat),
       formatTime(sw.last, timeFormat),
       showMs > 0 ? formatDuration(showMs) : '—',
@@ -451,16 +442,13 @@ export function generateRunReportPDF(run: Run, runShows: Show[], timeFormat: Tim
     alternateRowStyles: { fillColor: C.light },
     columnStyles: {
       0: { cellWidth: 8, halign: 'center' },
-      3: { halign: 'center', font: 'courier' },
-      4: { halign: 'center', font: 'courier' },
-      5: { halign: 'center', font: 'courier' },
-      6: { halign: 'center', font: 'courier' },
+      3: { halign: 'center', font: 'courier' }, 4: { halign: 'center', font: 'courier' },
+      5: { halign: 'center', font: 'courier' }, 6: { halign: 'center', font: 'courier' },
       7: { halign: 'center', font: 'courier', fontStyle: 'bold' },
     },
   });
   y = lastTableY(doc, y) + 8;
 
-  // ─── Run totals ────────────────────────────────────────────────────────────
   y = ensureSpace(doc, y, 24);
   const half = (W - MARGIN * 2 - 4) / 2;
   statCard(doc, MARGIN, half, y, 'Total time in show', formatDuration(totalShow), C.amber);
@@ -469,6 +457,19 @@ export function generateRunReportPDF(run: Run, runShows: Show[], timeFormat: Tim
 
   doc.setFontSize(8.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.slate);
   doc.text(`${shows.length} day${shows.length === 1 ? '' : 's'} · ${run.production}${run.venue ? ` · ${run.venue}` : ''}`, MARGIN, y);
+  return y;
+}
+
+export function generateRunReportPDF(run: Run, runShows: Show[], timeFormat: TimeFormat): void {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const now = new Date();
+  const shows = [...runShows].sort((a, b) => a.date.localeCompare(b.date));
+  const dateRange = shows.length
+    ? `${formatDateShort(shows[0].date)} — ${formatDateShort(shows[shows.length - 1].date)}`
+    : '';
+
+  let y = header(doc, 'RUN SUMMARY REPORT', run.name || run.production, run.venue || null, dateRange);
+  y = runSummaryBody(doc, run, shows, timeFormat, y, now);
 
   if (run.notes?.trim()) {
     y += 8;
@@ -476,8 +477,60 @@ export function generateRunReportPDF(run: Run, runShows: Show[], timeFormat: Tim
   }
 
   footer(doc);
-  const filename = `${(run.name || run.production).replace(/[^a-z0-9]/gi, '-')}-run-summary.pdf`;
-  doc.save(filename);
+  doc.save(`${safeName(run.name || run.production)}-run-summary.pdf`);
+}
+
+/**
+ * Double-sided printable run summary: page 1 client copy (summary + blank
+ * client notes + signature space), page 2 tech copy (summary + tech notes).
+ */
+export function generateRunPrintablePDF(run: Run, runShows: Show[], timeFormat: TimeFormat): void {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const now = new Date();
+  const shows = [...runShows].sort((a, b) => a.date.localeCompare(b.date));
+  const dateRange = shows.length
+    ? `${formatDateShort(shows[0].date)} — ${formatDateShort(shows[shows.length - 1].date)}`
+    : '';
+  const titleStr = run.name || run.production;
+
+  // ── Page 1 — CLIENT COPY ───────────────────────────────────────────────────
+  let y = header(doc, 'CLIENT COPY', titleStr, run.venue || null, dateRange);
+  y = runSummaryBody(doc, run, shows, timeFormat, y, now);
+
+  y = ensureSpace(doc, y + 6, 50);
+  y = sectionLabel(doc, 'Client Comments', y);
+  y = ruledArea(doc, y, 4);
+
+  y += 6;
+  y = sectionLabel(doc, 'Client Signature', y) + 6;
+  doc.setDrawColor(...C.slate); doc.setLineWidth(0.4);
+  doc.line(MARGIN, y + 6, MARGIN + 80, y + 6);
+  doc.line(W - MARGIN - 55, y + 6, W - MARGIN, y + 6);
+  doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.slate);
+  doc.text('Signed', MARGIN, y + 11);
+  doc.text('Date', W - MARGIN - 55, y + 11);
+
+  // ── Page 2 — TECH COPY ─────────────────────────────────────────────────────
+  doc.addPage();
+  y = header(doc, 'TECH COPY', titleStr, run.venue || null, dateRange);
+  y = runSummaryBody(doc, run, shows, timeFormat, y, now);
+
+  y += 6;
+  y = sectionLabel(doc, 'Tech Notes', y);
+  if (run.notes?.trim()) {
+    const lines = doc.splitTextToSize(run.notes, W - MARGIN * 2 - 8);
+    const h = Math.max(24, lines.length * 5 + 8);
+    doc.setFillColor(...C.light); doc.setDrawColor(...C.border);
+    doc.roundedRect(MARGIN, y, W - MARGIN * 2, h, 2, 2, 'FD');
+    doc.setFillColor(...C.amber); doc.rect(MARGIN, y, 2.5, h, 'F');
+    doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.dark);
+    doc.text(lines, MARGIN + 6, y + 6);
+  } else {
+    ruledArea(doc, y, 4);
+  }
+
+  footer(doc);
+  doc.save(`${safeName(titleStr)}-run-printable.pdf`);
 }
 
 /** Generate one individual PDF per show in a run (sequential downloads). */

@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import { Eraser, Check } from 'lucide-react';
 
 interface Props {
@@ -8,30 +8,40 @@ interface Props {
 
 /**
  * Lightweight canvas signature pad. Captures pointer strokes and exports a
- * trimmed-ish PNG data URL. Re-displays a saved signature as an image.
+ * PNG data URL. Re-displays a saved signature as an image.
+ *
+ * The canvas is sized + its context configured in a ref callback so it is
+ * (re)initialised every time the canvas element mounts — including after a
+ * clear/redo, which previously left the remounted canvas un-sized and inert.
  */
 export default function SignaturePad({ value, onChange }: Props) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
   const dirty = useRef(false);
   const [hasInk, setHasInk] = useState(false);
 
-  // Size the canvas to its display box (accounting for DPR) once mounted.
-  useEffect(() => {
-    const canvas = canvasRef.current;
+  // Stable identity (useCallback) so React only runs it when the canvas element
+  // actually mounts/unmounts — NOT on every re-render, which would otherwise
+  // resize (and clear) the canvas mid-signature and reset `dirty`.
+  const initCanvas = useCallback((canvas: HTMLCanvasElement | null) => {
+    canvasRef.current = canvas;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
+    // Guard against a zero-size box (e.g. mounted while hidden).
+    const w = rect.width || 320;
+    const h = rect.height || 96;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
     const ctx = canvas.getContext('2d');
     if (ctx) {
-      ctx.scale(dpr, dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.lineWidth = 2;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.strokeStyle = '#e2e8f0';
     }
+    dirty.current = false;
   }, []);
 
   function pos(e: React.PointerEvent) {
@@ -40,14 +50,16 @@ export default function SignaturePad({ value, onChange }: Props) {
   }
 
   function start(e: React.PointerEvent) {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
     drawing.current = true;
     dirty.current = true;
     setHasInk(true);
-    const ctx = canvasRef.current!.getContext('2d')!;
+    const ctx = canvas.getContext('2d')!;
     const { x, y } = pos(e);
     ctx.beginPath();
     ctx.moveTo(x, y);
-    canvasRef.current!.setPointerCapture(e.pointerId);
+    canvas.setPointerCapture(e.pointerId);
   }
   function move(e: React.PointerEvent) {
     if (!drawing.current) return;
@@ -61,16 +73,24 @@ export default function SignaturePad({ value, onChange }: Props) {
   }
 
   function clear() {
-    const canvas = canvasRef.current!;
-    canvas.getContext('2d')!.clearRect(0, 0, canvas.width, canvas.height);
+    const canvas = canvasRef.current;
+    if (canvas) canvas.getContext('2d')!.clearRect(0, 0, canvas.width, canvas.height);
     dirty.current = false;
     setHasInk(false);
     onChange(null);
   }
 
   function save() {
-    if (!dirty.current) return;
-    onChange(canvasRef.current!.toDataURL('image/png'));
+    if (!dirty.current || !canvasRef.current) return;
+    onChange(canvasRef.current.toDataURL('image/png'));
+  }
+
+  function redo() {
+    // Reset internal state, then drop the stored signature to show a fresh pad.
+    drawing.current = false;
+    dirty.current = false;
+    setHasInk(false);
+    onChange(null);
   }
 
   // If a signature already exists, show it instead of the live pad.
@@ -79,7 +99,7 @@ export default function SignaturePad({ value, onChange }: Props) {
       <div className="rounded-lg border border-show-border bg-white p-2 flex items-center justify-between gap-3">
         <img src={value} alt="Client signature" className="h-16 object-contain" />
         <button
-          onClick={() => onChange(null)}
+          onClick={redo}
           className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-show-border text-slate-500 hover:text-red-400 text-xs transition-colors"
         >
           <Eraser className="w-3.5 h-3.5" /> Redo
@@ -91,7 +111,7 @@ export default function SignaturePad({ value, onChange }: Props) {
   return (
     <div>
       <canvas
-        ref={canvasRef}
+        ref={initCanvas}
         onPointerDown={start}
         onPointerMove={move}
         onPointerUp={end}
