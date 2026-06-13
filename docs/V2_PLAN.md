@@ -115,6 +115,14 @@ Migration: `normalizeShow()` in `loadTauriStore()` fills new fields on old saved
 
 Remaining nice-to-haves (not blocking): verbose sync-packet logging, peer simulator, scenario presets beyond default.
 
+## v2.1 follow-ups (post-phase polish) ✅
+- ✅ Staff **breaks**: `StaffBreak[]` per member, count + total, **net hours** = gross − breaks (`staffBreakMinutes`/`staffWorkedMs`). Inline breaks editor (+10/+15/+30/custom).
+- ✅ Role **autofill** via `COMMON_ROLES` datalist (Supervisor, LX, Sound, Stage, Spot, Flys…).
+- ✅ **Copy-from** quick-picks in TimestampModal (other staff + client times).
+- ✅ **Printable double-sided PDF** (`generatePrintablePDF`): page 1 client copy (blank comment + signature space), page 2 tech copy (tech comments); both carry timing summary. Button in Report tab. Staff table gains Breaks + Net Hours columns.
+- ✅ **Drag overlay**: floating clone + amber ring while reordering segments.
+- ✅ History: **whole-row click** opens a show (delete stops propagation); new **Upcoming Shows** section for not-yet-started standalone shows (imported presets / planned).
+
 ## Notes / ideas worth adding as we go
 - Clock-jump dev tool needs a global "now" injection (currently `useClock` reads real `new Date()`); add a dev clock offset in the store that `useClock` and timing helpers respect.
 - Signature pad: small canvas component → base64 PNG into `clientSignature`.
