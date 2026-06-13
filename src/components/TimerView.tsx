@@ -6,11 +6,13 @@ import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   DndContext,
+  DragOverlay,
   closestCenter,
   PointerSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useShowStore } from '../store';
@@ -20,7 +22,7 @@ import SegmentCard from './SegmentCard';
 import ActiveSegmentPanel from './ActiveSegmentPanel';
 import type { PerformanceType, DayType, SegmentType } from '../types';
 import { getTotalRunningMs, getShowTimeMs, getProductionSegmentMs, SHOW_CORE_TYPES, PRODUCTION_TYPES } from '../types';
-import { formatDuration, formatDurationShort } from '../utils/time';
+import { formatDuration, formatDurationShort, formatTime } from '../utils/time';
 import { schedulePreShowNotifications } from '../utils/notifications';
 import { computeExpectedStarts } from '../utils/schedule';
 
@@ -46,6 +48,7 @@ export default function TimerView() {
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [nextTypePickerOpen, setNextTypePickerOpen] = useState(false);
   const [showTab, setShowTab] = useState<'runsheet' | 'people' | 'report'>('runsheet');
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
   const show = shows.find(s => s.id === currentShowId) ?? null;
   const currentRun = show?.runId ? (runs.find(r => r.id === show.runId) ?? null) : null;
@@ -62,7 +65,12 @@ export default function TimerView() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
+  function handleDragStart(event: DragStartEvent) {
+    setDraggingId(String(event.active.id));
+  }
+
   function handleDragEnd(event: DragEndEvent) {
+    setDraggingId(null);
     const { active, over } = event;
     if (!over || active.id === over.id || !show) return;
     const oldIndex = segments.findIndex(s => s.id === active.id);
@@ -243,7 +251,9 @@ export default function TimerView() {
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
+            onDragCancel={() => setDraggingId(null)}
           >
             <SortableContext
               items={segments.map(s => s.id)}
@@ -271,17 +281,38 @@ export default function TimerView() {
                           <div className="h-px flex-1 bg-rose-500/20" />
                         </div>
                       )}
-                      <SegmentCard
-                        showId={show.id}
-                        segment={seg}
-                        timeFormat={settings.timeFormat}
-                        expectedStartAt={expectedStarts.get(seg.id) ?? null}
-                      />
+                      <div className={draggingId === seg.id ? 'ring-1 ring-amber-500/40 ring-inset' : ''}>
+                        <SegmentCard
+                          showId={show.id}
+                          segment={seg}
+                          timeFormat={settings.timeFormat}
+                          expectedStartAt={expectedStarts.get(seg.id) ?? null}
+                        />
+                      </div>
                     </div>
                   );
                 })}
               </div>
             </SortableContext>
+
+            {/* Floating preview of the segment being dragged */}
+            <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.2,0,0,1)' }}>
+              {draggingId ? (() => {
+                const seg = segments.find(s => s.id === draggingId);
+                if (!seg) return null;
+                const est = expectedStarts.get(seg.id) ?? null;
+                return (
+                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-500/50 bg-show-card shadow-[0_12px_40px_rgba(0,0,0,0.6)] cursor-grabbing">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
+                    <span className="text-sm font-semibold text-amber-100 flex-1">{seg.label}</span>
+                    <span className="font-mono text-xs tabular text-slate-400">
+                      {seg.actualStart ? formatTime(seg.actualStart, settings.timeFormat)
+                        : est ? `~${formatTime(est, settings.timeFormat)}` : '--:--'}
+                    </span>
+                  </div>
+                );
+              })() : null}
+            </DragOverlay>
           </DndContext>
 
           {/* Add segment */}

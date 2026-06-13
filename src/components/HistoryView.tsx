@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Clock, Trash2, ArrowRight, ChevronDown, FolderOpen, CheckCircle, Plus } from 'lucide-react';
+import { Clock, Trash2, ArrowRight, ChevronDown, FolderOpen, CheckCircle, Plus, CalendarClock } from 'lucide-react';
 import AppLogo, { AppLogoMark } from './AppLogo';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useShowStore } from '../store';
@@ -30,8 +30,18 @@ export default function HistoryView() {
     });
   }
 
-  const standaloneShows = shows
-    .filter(s => !s.runId)
+  const hasStarted = (s: typeof shows[number]) =>
+    !!s.completedAt || s.segments.some(seg => seg.actualStart);
+
+  const standalone = shows.filter(s => !s.runId);
+
+  // Upcoming = standalone shows not yet started (imported presets / planned).
+  const upcomingShows = standalone
+    .filter(s => !hasStarted(s))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const standaloneShows = standalone
+    .filter(s => hasStarted(s))
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const sortedRuns = [...runs].sort(
@@ -52,6 +62,54 @@ export default function HistoryView() {
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
+      {/* Upcoming shows — planned / imported presets not yet started */}
+      {upcomingShows.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">
+            Upcoming Shows
+          </h2>
+          <div className="space-y-2">
+            {upcomingShows.map((show, i) => {
+              const isCurrent = show.id === currentShowId;
+              return (
+                <motion.div
+                  key={show.id}
+                  onClick={() => setCurrentShow(show.id)}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.04 }}
+                  className={`flex items-center gap-3 rounded-xl border p-3.5 cursor-pointer transition-all ${
+                    isCurrent ? 'border-amber-500/30 bg-amber-500/5' : 'border-show-border bg-show-card hover:border-amber-500/20'
+                  }`}
+                >
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-show-surface">
+                    <CalendarClock className="w-4.5 h-4.5 text-amber-400/70" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-slate-200 text-sm truncate">{show.production || show.title}</p>
+                      <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-full shrink-0">Ready</span>
+                    </div>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      {formatDateShort(show.date)}
+                      {show.production && show.title !== show.production ? ` · ${show.title}` : ''}
+                      {` · ${show.segments.length} segments`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={e => { e.stopPropagation(); deleteShow(show.id); }}
+                    className="w-7 h-7 rounded-lg hover:bg-red-500/10 flex items-center justify-center text-slate-700 hover:text-red-400 transition-colors shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                  <ArrowRight className="w-3.5 h-3.5 text-slate-700 shrink-0" />
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Production Runs section — always shown so the button is discoverable */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
@@ -178,7 +236,8 @@ export default function HistoryView() {
                               return (
                                 <div
                                   key={show.id}
-                                  className={`flex items-center gap-3 px-4 py-2.5 border-b border-show-border/50 last:border-b-0 ${
+                                  onClick={() => setCurrentShow(show.id)}
+                                  className={`flex items-center gap-3 px-4 py-2.5 border-b border-show-border/50 last:border-b-0 cursor-pointer ${
                                     isCurrent ? 'bg-amber-500/5' : 'hover:bg-show-hover/20'
                                   } transition-colors`}
                                 >
@@ -212,18 +271,13 @@ export default function HistoryView() {
                                   )}
                                   <div className="flex items-center gap-1 shrink-0">
                                     <button
-                                      onClick={() => deleteShow(show.id)}
+                                      onClick={e => { e.stopPropagation(); deleteShow(show.id); }}
                                       className="w-6 h-6 rounded hover:bg-red-500/10 flex items-center justify-center text-slate-700 hover:text-red-400 transition-colors"
                                     >
                                       <Trash2 className="w-3 h-3" />
                                     </button>
                                     {!isCurrent && (
-                                      <button
-                                        onClick={() => setCurrentShow(show.id)}
-                                        className="w-6 h-6 rounded hover:bg-amber-500/10 flex items-center justify-center text-slate-700 hover:text-amber-400 transition-colors"
-                                      >
-                                        <ArrowRight className="w-3 h-3" />
-                                      </button>
+                                      <ArrowRight className="w-3 h-3 text-slate-700" />
                                     )}
                                   </div>
                                 </div>
@@ -292,13 +346,14 @@ export default function HistoryView() {
               return (
                 <motion.div
                   key={show.id}
+                  onClick={() => setCurrentShow(show.id)}
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.04 }}
-                  className={`relative rounded-xl border p-4 transition-all ${
+                  className={`relative rounded-xl border p-4 transition-all cursor-pointer ${
                     isCurrent
                       ? 'border-amber-500/30 bg-amber-500/5'
-                      : 'border-show-border bg-show-card hover:border-show-border-light'
+                      : 'border-show-border bg-show-card hover:border-amber-500/20'
                   }`}
                 >
                   {isCurrent && (
@@ -336,19 +391,13 @@ export default function HistoryView() {
 
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button
-                        onClick={() => deleteShow(show.id)}
+                        onClick={e => { e.stopPropagation(); deleteShow(show.id); }}
                         className="w-7 h-7 rounded-lg hover:bg-red-500/10 flex items-center justify-center text-slate-700 hover:text-red-400 transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                       {!isCurrent && (
-                        <button
-                          onClick={() => setCurrentShow(show.id)}
-                          className="w-7 h-7 rounded-lg hover:bg-amber-500/10 flex items-center justify-center text-slate-600 hover:text-amber-400 transition-colors"
-                          title="Open show"
-                        >
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
+                        <ArrowRight className="w-3.5 h-3.5 text-slate-700" />
                       )}
                     </div>
                   </div>
