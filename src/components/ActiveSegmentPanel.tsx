@@ -184,8 +184,11 @@ export default function ActiveSegmentPanel({ show, timeFormat, expectedStarts }:
     });
   }
 
-  const panelBorder = isInterval ? 'border-purple-500/30' : 'border-amber-500/30';
+  const panelBorder = isInterval ? 'border-purple-500/25' : 'border-amber-500/25';
   const panelBg     = isInterval ? 'bg-show-panel-alt'    : 'bg-show-card-alt';
+  const panelGlow   = isInterval
+    ? '0 0 0 1px rgba(168,85,247,0.08), 0 8px 32px rgba(168,85,247,0.12)'
+    : '0 0 0 1px rgba(245,158,11,0.06), 0 8px 32px rgba(245,158,11,0.10)';
 
   return (
     <motion.div
@@ -194,25 +197,35 @@ export default function ActiveSegmentPanel({ show, timeFormat, expectedStarts }:
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.2 }}
       className={`mx-6 mb-3 rounded-xl border overflow-hidden ${panelBorder} ${panelBg}`}
+      style={{ boxShadow: panelGlow }}
     >
       <div className="px-4 pt-3 pb-3">
 
-        {/* ── Top row: badge + name ─────────────────────────────────────────── */}
-        <div className="flex items-center gap-2 mb-3">
-          <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded ${
-            isInterval ? 'bg-purple-500/20 text-purple-400' : 'bg-amber-500/20 text-amber-400'
-          }`}>
-            {isInterval ? 'Interval' : 'Live'}
-          </span>
-          {isOnHold && (
-            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-purple-500/20 text-purple-400 animate-pulse">
-              Hold
+        {/* ── Top row: tally light + name ──────────────────────────────────── */}
+        <div className="flex items-center gap-2.5 mb-3">
+          {/* Tally light — broadcast-style indicator */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${
+              isOnHold  ? 'bg-purple-400 animate-pulse' :
+              isInterval ? 'bg-purple-500 tally-active' :
+              'bg-amber-500 tally-active'
+            }`} />
+            <span className={`text-[10px] font-bold tracking-[0.2em] uppercase ${
+              isOnHold  ? 'text-purple-400' :
+              isInterval ? 'text-purple-400' :
+              'text-amber-400'
+            }`}>
+              {isOnHold ? 'Hold' : isInterval ? 'Interval' : 'Live'}
             </span>
-          )}
-          <span className="text-base font-bold text-slate-100 truncate flex-1">{active.label}</span>
-          <span className="text-xs text-slate-600 shrink-0">
-            Started {formatTime(active.actualStart, timeFormat)}
-            {active.expectedDurationMinutes ? ` · ${active.expectedDurationMinutes}m exp` : ''}
+          </div>
+
+          <span className="text-[10px] text-slate-800 select-none">·</span>
+
+          <span className="text-sm font-semibold text-slate-100 truncate flex-1">{active.label}</span>
+
+          <span className="text-[11px] text-slate-600 font-mono tabular shrink-0">
+            {formatTime(active.actualStart, timeFormat)}
+            {active.expectedDurationMinutes ? <span className="text-slate-700"> · {active.expectedDurationMinutes}m</span> : null}
           </span>
         </div>
 

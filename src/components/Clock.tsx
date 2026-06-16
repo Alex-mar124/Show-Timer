@@ -68,10 +68,10 @@ export default function Clock({ timeFormat, expectedEnd }: Props) {
   const date = formatDateLong(now);
 
   return (
-    <div className="flex flex-col items-center pt-7 pb-5 select-none">
+    <div className="relative flex flex-col items-center pt-7 pb-5 select-none clock-glow">
 
       {/* Tile row */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2.5 relative z-10">
         <DigitGroup value={h} />
         <Colon />
         <DigitGroup value={m} />
@@ -81,24 +81,24 @@ export default function Clock({ timeFormat, expectedEnd }: Props) {
         {/* 12h AM/PM — both labels shown, active one is amber */}
         {ampm && (
           <div className="flex flex-col items-start gap-0.5 ml-1 self-end mb-1">
-            <span className={`font-sans text-sm font-semibold leading-none tracking-widest uppercase transition-colors duration-300 ${
-              ampm === 'AM' ? 'text-amber-400' : 'text-slate-700'
+            <span className={`font-sans text-xs font-bold leading-none tracking-[0.2em] uppercase transition-colors duration-300 ${
+              ampm === 'AM' ? 'text-amber-400' : 'text-slate-800'
             }`}>AM</span>
-            <span className={`font-sans text-sm font-semibold leading-none tracking-widest uppercase transition-colors duration-300 ${
-              ampm === 'PM' ? 'text-amber-400' : 'text-slate-700'
+            <span className={`font-sans text-xs font-bold leading-none tracking-[0.2em] uppercase transition-colors duration-300 ${
+              ampm === 'PM' ? 'text-amber-400' : 'text-slate-800'
             }`}>PM</span>
           </div>
         )}
       </div>
 
-      {/* Date + optional expected-end pill */}
-      <div className="mt-3.5 flex items-center justify-center gap-3">
-        <p className="text-xs font-medium tracking-[0.18em] uppercase text-slate-500">
+      {/* Date + optional expected-end */}
+      <div className="mt-3.5 flex items-center justify-center gap-3 relative z-10">
+        <p className="text-[11px] font-medium tracking-[0.22em] uppercase text-slate-600">
           {date}
         </p>
         {expectedEnd && (
-          <span className="text-xs text-slate-600 border border-show-border rounded-full px-2.5 py-0.5 font-mono tabular">
-            End ~{format(expectedEnd, timeFormat === '12h' ? 'h:mm aa' : 'HH:mm')}
+          <span className="text-[11px] text-slate-600 bg-show-card border border-show-border rounded px-2 py-0.5 font-mono tabular tracking-wider">
+            ends ~{format(expectedEnd, timeFormat === '12h' ? 'h:mm aa' : 'HH:mm')}
           </span>
         )}
       </div>

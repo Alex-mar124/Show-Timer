@@ -100,13 +100,18 @@ export default function SegmentCard({ showId, dateAnchor, segment, timeFormat, e
   const isComplete = status === 'complete';
   const isShowEnd  = segment.type === 'show_end';
 
-  const PROD_ACCENT: Partial<Record<SegmentType, string>> = {
-    bump_in:   'border-l-2 border-l-orange-500/50',
-    bump_out:  'border-l-2 border-l-rose-500/50',
-    rehearsal: 'border-l-2 border-l-teal-500/50',
-    plotting:  'border-l-2 border-l-indigo-500/50',
-  };
-  const prodAccent = PROD_ACCENT[segment.type] ?? '';
+  // Status-first left bar — wider (3px) and driven by live state, falls back to segment-type colour
+  const leftBar = isActive && isOnHold
+    ? 'border-l-[3px] border-l-purple-500'
+    : isActive
+    ? 'border-l-[3px] border-l-amber-500'
+    : isComplete
+    ? 'border-l-[3px] border-l-green-600/50'
+    : segment.type === 'bump_in'   ? 'border-l-[3px] border-l-orange-500/40'
+    : segment.type === 'bump_out'  ? 'border-l-[3px] border-l-rose-500/40'
+    : segment.type === 'rehearsal' ? 'border-l-[3px] border-l-teal-500/40'
+    : segment.type === 'plotting'  ? 'border-l-[3px] border-l-indigo-500/40'
+    : 'border-l-[3px] border-l-white/5';
 
   const SCHEDULE_TYPES: Set<SegmentType> = new Set(['bump_in', 'bump_out', 'rehearsal', 'plotting', 'doors']);
   const showSchedule = SCHEDULE_TYPES.has(segment.type);
@@ -175,7 +180,7 @@ export default function SegmentCard({ showId, dateAnchor, segment, timeFormat, e
         style={dragStyle}
         initial={{ opacity: 0, y: 4 }}
         animate={{ opacity: isDragging ? 0.55 : 1, y: 0 }}
-        className={`relative border-b border-show-border last:border-b-0 transition-colors duration-300 ${rowBg} ${prodAccent}`}
+        className={`relative border-b border-show-border last:border-b-0 transition-colors duration-300 ${rowBg} ${leftBar}`}
       >
         <div className="px-4 py-3">
 
