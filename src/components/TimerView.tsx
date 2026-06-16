@@ -21,7 +21,7 @@ import Clock from './Clock';
 import SegmentCard from './SegmentCard';
 import ActiveSegmentPanel from './ActiveSegmentPanel';
 import type { PerformanceType, DayType, SegmentType } from '../types';
-import { getTotalRunningMs, getShowTimeMs, getProductionSegmentMs, SHOW_CORE_TYPES, PRODUCTION_TYPES } from '../types';
+import { getTotalRunningMs, getShowTimeMs, getProductionSegmentMs, SHOW_CORE_TYPES, PRODUCTION_TYPES, getSegmentStatus } from '../types';
 import { formatDuration, formatDurationShort, formatTime } from '../utils/time';
 import { schedulePreShowNotifications } from '../utils/notifications';
 import { computeExpectedStarts } from '../utils/schedule';
@@ -59,6 +59,22 @@ export default function TimerView() {
     () => (show ? computeExpectedStarts(show) : new Map<string, Date | null>()),
     [show]
   );
+
+  const clockGlowColor = useMemo(() => {
+    if (!show) return 'rgba(245, 158, 11, 0.05)';
+    const active = show.segments.find(s => getSegmentStatus(s) === 'active');
+    if (!active) return 'rgba(245, 158, 11, 0.05)';
+    const onHold = active.holds.some(h => !h.endTime);
+    if (onHold || active.type === 'interval') return 'rgba(168, 85, 247, 0.09)';
+    switch (active.type) {
+      case 'bump_in':   return 'rgba(249, 115, 22, 0.09)';
+      case 'bump_out':  return 'rgba(244, 63, 94, 0.09)';
+      case 'rehearsal': return 'rgba(20, 184, 166, 0.09)';
+      case 'plotting':  return 'rgba(99, 102, 241, 0.09)';
+      case 'doors':     return 'rgba(14, 165, 233, 0.09)';
+      default:          return 'rgba(245, 158, 11, 0.07)';
+    }
+  }, [show]);
 
   // Require 8px of movement before drag activates — prevents button click interference
   const sensors = useSensors(
@@ -145,7 +161,7 @@ export default function TimerView() {
     <div className="flex flex-1 min-h-0">
       {/* Main panel */}
       <div className="flex flex-col flex-1 min-h-0 min-w-0 dot-grid">
-        <Clock timeFormat={settings.timeFormat} expectedEnd={expectedEnd} />
+        <Clock timeFormat={settings.timeFormat} expectedEnd={expectedEnd} glowColor={clockGlowColor} />
 
         {/* Show info bar */}
         <div className="px-6 pb-3 flex items-center justify-between gap-2">

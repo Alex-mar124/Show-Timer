@@ -120,6 +120,13 @@ export default function ActiveSegmentPanel({ show, timeFormat, expectedStarts }:
       : Math.min(elapsedMs / expectedMs, 1)       // fills as act progresses
     : 0;
 
+  // Urgency — escalates arc colour and tally speed when < 5 min remain
+  const remainingMs = expectedMs !== null && !isOver && !isInterval && !isOnHold
+    ? Math.max(0, expectedMs - elapsedMs)
+    : null;
+  const isUrgent   = remainingMs !== null && remainingMs < 5 * 60_000;
+  const isCritical = remainingMs !== null && remainingMs < 2 * 60_000;
+
   // Arc colours
   const strokeColor = isOnHold
     ? '#a855f7'
@@ -127,6 +134,10 @@ export default function ActiveSegmentPanel({ show, timeFormat, expectedStarts }:
     ? '#ef4444'
     : isInterval
     ? '#a855f7'
+    : isCritical
+    ? '#ef4444'
+    : isUrgent
+    ? '#f97316'
     : '#f59e0b';
 
   // Label inside arc: elapsed for acts, countdown for intervals
@@ -152,7 +163,7 @@ export default function ActiveSegmentPanel({ show, timeFormat, expectedStarts }:
     const m = Math.floor(leftMs / 60000);
     const s = Math.floor((leftMs % 60000) / 1000);
     arcRemaining = `${m > 0 ? `${m}m` : `${s}s`} left`;
-    arcRemainingColor = '#64748b';
+    arcRemainingColor = isCritical ? '#ef4444' : isUrgent ? '#f97316' : '#64748b';
   }
 
   const nextLabel    = next?.label ?? null;
@@ -196,8 +207,8 @@ export default function ActiveSegmentPanel({ show, timeFormat, expectedStarts }:
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.2 }}
-      className={`mx-6 mb-3 rounded-xl border overflow-hidden ${panelBorder} ${panelBg}`}
-      style={{ boxShadow: panelGlow }}
+      className={`mx-6 mb-3 rounded-xl border overflow-hidden ${panelBorder} ${panelBg}${isOnHold ? ' hold-border-pulse' : ''}`}
+      style={isOnHold ? undefined : { boxShadow: panelGlow }}
     >
       <div className="px-4 pt-3 pb-3">
 
@@ -206,8 +217,9 @@ export default function ActiveSegmentPanel({ show, timeFormat, expectedStarts }:
           {/* Tally light — broadcast-style indicator */}
           <div className="flex items-center gap-1.5 shrink-0">
             <span className={`w-2 h-2 rounded-full shrink-0 ${
-              isOnHold  ? 'bg-purple-400 animate-pulse' :
-              isInterval ? 'bg-purple-500 tally-active' :
+              isOnHold   ? 'bg-purple-400 animate-pulse' :
+              isCritical ? 'bg-red-500 tally-urgent'    :
+              isInterval ? 'bg-purple-500 tally-active'  :
               'bg-amber-500 tally-active'
             }`} />
             <span className={`text-[10px] font-bold tracking-[0.2em] uppercase ${

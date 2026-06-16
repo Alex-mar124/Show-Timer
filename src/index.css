@@ -21,7 +21,7 @@
   }
 
   body {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
     color: #e2e8f0;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -99,6 +99,24 @@
   }
   .tally-active {
     animation: tally-pulse 1.2s ease-in-out infinite;
+  }
+
+  /* Urgency tally — faster red pulse when < 2 min remain */
+  @keyframes tally-urgent {
+    0%, 100% { opacity: 1; box-shadow: 0 0 8px 3px rgba(239, 68, 68, 0.95); }
+    50%       { opacity: 0.55; box-shadow: 0 0 3px 1px rgba(239, 68, 68, 0.35); }
+  }
+  .tally-urgent {
+    animation: tally-urgent 0.45s ease-in-out infinite;
+  }
+
+  /* Hold border pulse — slow purple glow around the active panel */
+  @keyframes hold-border-pulse {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(168,85,247,0.3), 0 8px 32px rgba(168,85,247,0.12); }
+    50%       { box-shadow: 0 0 0 1px rgba(168,85,247,0.8), 0 8px 32px rgba(168,85,247,0.32), 0 0 20px rgba(168,85,247,0.15); }
+  }
+  .hold-border-pulse {
+    animation: hold-border-pulse 1.5s ease-in-out infinite;
   }
 
   /* Ambient clock glow */

@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 interface Props {
   timeFormat: TimeFormat;
   expectedEnd?: Date | null;
+  glowColor?: string; // rgba(...) color string for ambient glow
 }
 
 /** A single digit tile that animates when its value changes. */
@@ -58,7 +59,7 @@ function Colon({ dim }: { dim?: boolean }) {
   );
 }
 
-export default function Clock({ timeFormat, expectedEnd }: Props) {
+export default function Clock({ timeFormat, expectedEnd, glowColor = 'rgba(245, 158, 11, 0.07)' }: Props) {
   const now = useClock();
 
   const h    = format(now, timeFormat === '12h' ? 'hh' : 'HH');
@@ -68,7 +69,13 @@ export default function Clock({ timeFormat, expectedEnd }: Props) {
   const date = formatDateLong(now);
 
   return (
-    <div className="relative flex flex-col items-center pt-7 pb-5 select-none clock-glow">
+    <div
+      className="relative flex flex-col items-center pt-7 pb-5 select-none"
+      style={{
+        background: `radial-gradient(ellipse 55% 40% at 50% 65%, ${glowColor} 0%, transparent 70%)`,
+        transition: 'background 1s ease',
+      }}
+    >
 
       {/* Tile row */}
       <div className="flex items-center gap-2.5 relative z-10">

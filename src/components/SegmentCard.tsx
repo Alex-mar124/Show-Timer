@@ -100,11 +100,19 @@ export default function SegmentCard({ showId, dateAnchor, segment, timeFormat, e
   const isComplete = status === 'complete';
   const isShowEnd  = segment.type === 'show_end';
 
-  // Status-first left bar — wider (3px) and driven by live state, falls back to segment-type colour
-  const leftBar = isActive && isOnHold
-    ? 'border-l-[3px] border-l-purple-500'
-    : isActive
-    ? 'border-l-[3px] border-l-amber-500'
+  // Per-type hex colour — used for left bar, progress fill, and drag handle
+  const segColor = isOnHold || segment.type === 'interval'
+    ? '#a855f7'
+    : segment.type === 'bump_in'   ? '#f97316'
+    : segment.type === 'bump_out'  ? '#f43f5e'
+    : segment.type === 'rehearsal' ? '#14b8a6'
+    : segment.type === 'plotting'  ? '#6366f1'
+    : segment.type === 'doors'     ? '#0ea5e9'
+    : '#f59e0b';
+
+  // Static left bar for non-active segments; active uses absolute progress bar instead
+  const leftBar = isActive
+    ? ''
     : isComplete
     ? 'border-l-[3px] border-l-green-600/50'
     : segment.type === 'bump_in'   ? 'border-l-[3px] border-l-orange-500/40'
@@ -122,8 +130,9 @@ export default function SegmentCard({ showId, dateAnchor, segment, timeFormat, e
   const [labelVal,     setLabelVal]     = useState(segment.label);
   const [plannedField, setPlannedField] = useState<'plannedStart' | 'plannedEnd' | null>(null);
 
-  const expectedMs  = segment.expectedDurationMinutes ? segment.expectedDurationMinutes * 60_000 : null;
-  const overUnderMs = expectedMs !== null && status !== 'pending' ? elapsedMs - expectedMs : null;
+  const expectedMs    = segment.expectedDurationMinutes ? segment.expectedDurationMinutes * 60_000 : null;
+  const overUnderMs   = expectedMs !== null && status !== 'pending' ? elapsedMs - expectedMs : null;
+  const progressFill  = isActive && expectedMs ? Math.min(Math.max(elapsedMs / expectedMs, 0), 1) : null;
 
   const backAt      = segment.type === 'interval' && status === 'active' ? getIntervalBackAtTime(segment) : null;
   const backAtStr   = backAt ? formatTime(backAt, timeFormat) : null;
@@ -182,6 +191,20 @@ export default function SegmentCard({ showId, dateAnchor, segment, timeFormat, e
         animate={{ opacity: isDragging ? 0.55 : 1, y: 0 }}
         className={`relative border-b border-show-border last:border-b-0 transition-colors duration-300 ${rowBg} ${leftBar}`}
       >
+        {/* Active progress bar — fills upward as segment elapses */}
+        {isActive && (
+          <div className="absolute left-0 top-0 bottom-0 w-[3px] overflow-hidden" style={{ background: `${segColor}20` }}>
+            <div
+              className="absolute left-0 bottom-0 w-full"
+              style={{
+                height: progressFill !== null ? `${progressFill * 100}%` : '100%',
+                background: segColor,
+                transition: 'height 1s linear',
+              }}
+            />
+          </div>
+        )}
+
         <div className="px-4 py-3">
 
           {/* ── Main row ────────────────────────────────────────────────────── */}
@@ -190,11 +213,12 @@ export default function SegmentCard({ showId, dateAnchor, segment, timeFormat, e
             {/* Cue light */}
             <span className={`w-2.5 h-2.5 rounded-full shrink-0 transition-all duration-300 ${cueDot}`} />
 
-            {/* Drag handle */}
+            {/* Drag handle — color hints at segment type */}
             <button
               {...attributes}
               {...listeners}
-              className="shrink-0 cursor-grab active:cursor-grabbing text-slate-800 hover:text-slate-600 transition-colors touch-none"
+              className="shrink-0 cursor-grab active:cursor-grabbing transition-colors touch-none"
+              style={{ color: `${segColor}55` }}
               tabIndex={-1}
               aria-label="Drag to reorder"
             >
