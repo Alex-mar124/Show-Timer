@@ -292,10 +292,10 @@ export default function SessionPanel() {
             </div>
 
             {/* ── Host card ── */}
-            <div className="rounded-xl border border-show-border bg-show-card">
+            <div className="rounded-xl border border-show-border bg-show-card overflow-hidden">
               <button
                 onClick={() => setHostOpen(v => !v)}
-                className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-show-hover transition-colors rounded-t-xl"
+                className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-show-hover transition-colors"
               >
                 <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
                   <MonitorPlay className="w-4 h-4 text-amber-400" />
@@ -362,10 +362,10 @@ export default function SessionPanel() {
             </div>
 
             {/* ── Join card ── */}
-            <div className="rounded-xl border border-show-border bg-show-card">
+            <div className="rounded-xl border border-show-border bg-show-card overflow-hidden">
               <button
                 onClick={() => setJoinOpen(v => !v)}
-                className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-show-hover transition-colors rounded-t-xl"
+                className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-show-hover transition-colors"
               >
                 <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
                   <Wifi className="w-4 h-4 text-blue-400" />
