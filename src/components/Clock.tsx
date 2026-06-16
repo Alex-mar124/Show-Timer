@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 interface Props {
   timeFormat: TimeFormat;
   expectedEnd?: Date | null;
+  glowColor?: string; // rgba(...) color string for ambient glow
 }
 
 /** A single digit tile that animates when its value changes. */
@@ -58,7 +59,7 @@ function Colon({ dim }: { dim?: boolean }) {
   );
 }
 
-export default function Clock({ timeFormat, expectedEnd }: Props) {
+export default function Clock({ timeFormat, expectedEnd, glowColor = 'rgba(245, 158, 11, 0.14)' }: Props) {
   const now = useClock();
 
   const h    = format(now, timeFormat === '12h' ? 'hh' : 'HH');
@@ -68,10 +69,21 @@ export default function Clock({ timeFormat, expectedEnd }: Props) {
   const date = formatDateLong(now);
 
   return (
-    <div className="flex flex-col items-center pt-7 pb-5 select-none">
+    <div className="relative flex flex-col items-center pt-7 pb-5 select-none">
+
+      {/* Ambient glow — oversized absolute div so it bleeds below without a hard clip */}
+      <div
+        className="absolute pointer-events-none"
+        style={{
+          inset: '-10px -120px -120px -120px',
+          zIndex: 0,
+          background: `radial-gradient(ellipse 55% 45% at 50% 28%, ${glowColor} 0%, transparent 100%)`,
+          transition: 'background 1s ease',
+        }}
+      />
 
       {/* Tile row */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2.5 relative z-10">
         <DigitGroup value={h} />
         <Colon />
         <DigitGroup value={m} />
@@ -81,24 +93,24 @@ export default function Clock({ timeFormat, expectedEnd }: Props) {
         {/* 12h AM/PM — both labels shown, active one is amber */}
         {ampm && (
           <div className="flex flex-col items-start gap-0.5 ml-1 self-end mb-1">
-            <span className={`font-sans text-sm font-semibold leading-none tracking-widest uppercase transition-colors duration-300 ${
-              ampm === 'AM' ? 'text-amber-400' : 'text-slate-700'
+            <span className={`font-sans text-xs font-bold leading-none tracking-[0.2em] uppercase transition-colors duration-300 ${
+              ampm === 'AM' ? 'text-amber-400' : 'text-slate-800'
             }`}>AM</span>
-            <span className={`font-sans text-sm font-semibold leading-none tracking-widest uppercase transition-colors duration-300 ${
-              ampm === 'PM' ? 'text-amber-400' : 'text-slate-700'
+            <span className={`font-sans text-xs font-bold leading-none tracking-[0.2em] uppercase transition-colors duration-300 ${
+              ampm === 'PM' ? 'text-amber-400' : 'text-slate-800'
             }`}>PM</span>
           </div>
         )}
       </div>
 
-      {/* Date + optional expected-end pill */}
-      <div className="mt-3.5 flex items-center justify-center gap-3">
-        <p className="text-xs font-medium tracking-[0.18em] uppercase text-slate-500">
+      {/* Date + optional expected-end */}
+      <div className="mt-3.5 flex items-center justify-center gap-3 relative z-10">
+        <p className="text-[11px] font-medium tracking-[0.22em] uppercase text-slate-600">
           {date}
         </p>
         {expectedEnd && (
-          <span className="text-xs text-slate-600 border border-show-border rounded-full px-2.5 py-0.5 font-mono tabular">
-            End ~{format(expectedEnd, timeFormat === '12h' ? 'h:mm aa' : 'HH:mm')}
+          <span className="text-[11px] text-slate-600 bg-show-card border border-show-border rounded px-2 py-0.5 font-mono tabular tracking-wider">
+            ends ~{format(expectedEnd, timeFormat === '12h' ? 'h:mm aa' : 'HH:mm')}
           </span>
         )}
       </div>

@@ -261,6 +261,23 @@ async function saveTauriStore(state: { shows: Show[]; currentShowId: string | nu
   }
 }
 
+/** Hard-clears the store file — required on macOS/Apple Silicon where key overwrite
+ *  alone may not flush. Preserves settings so preferences survive a "clear data". */
+async function clearTauriStore(settings: AppSettings) {
+  try {
+    const { load } = await import('@tauri-apps/plugin-store');
+    const store = await load('show-timer.json', { autoSave: false, defaults: {} });
+    await store.clear();
+    await store.set('shows', []);
+    await store.set('currentShowId', null);
+    await store.set('runs', []);
+    await store.set('settings', settings);
+    await store.save();
+  } catch {
+    // Browser dev mode — silently skip
+  }
+}
+
 export const useShowStore = create<ShowStore>((set, get) => ({
   shows: [],
   currentShowId: null,
@@ -398,8 +415,10 @@ export const useShowStore = create<ShowStore>((set, get) => ({
   },
 
   clearAllData: () => {
+    const { settings } = get();
     set({ shows: [], runs: [], currentShowId: null, devClockOffsetMs: 0 });
-    get().saveToStore();
+    // Use explicit store.clear() so macOS/Apple Silicon actually flushes the file.
+    clearTauriStore(settings);
     get().addToast({ title: 'All data cleared', message: 'Shows and runs removed', type: 'warning' });
   },
 

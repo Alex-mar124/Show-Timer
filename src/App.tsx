@@ -135,13 +135,15 @@ export default function App() {
       {/* Header */}
       <header className="shrink-0 flex items-center px-4 gap-3 border-b border-show-border bg-show-surface" style={{ height: '60px' }}>
 
-        {/* Brand */}
+        {/* Brand — styled like a rack-unit equipment plate */}
         <div className="flex items-center gap-2.5 shrink-0">
-          <AppLogo size={32} className="shrink-0" />
-          <div className="flex flex-col leading-none">
-            <span className="font-mono text-[9px] tracking-[0.22em] text-slate-600 uppercase">Show</span>
-            <span className="font-mono text-[11px] tracking-[0.18em] text-amber-400 uppercase font-bold">Timer</span>
+          <AppLogo size={30} className="shrink-0" />
+          <div className="flex flex-col leading-none gap-0.5">
+            <span className="font-mono text-[8px] tracking-[0.3em] text-slate-700 uppercase">Show</span>
+            <span className="font-mono text-[10px] tracking-[0.25em] text-amber-400/90 uppercase font-bold">Timer</span>
           </div>
+          {/* Vertical rule accent */}
+          <div className="w-px h-5 bg-show-border ml-0.5" />
         </div>
 
         {/* Center: current show info */}

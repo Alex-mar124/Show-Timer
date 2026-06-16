@@ -223,7 +223,7 @@ export function generatePDF(show: Show, timeFormat: TimeFormat): void {
   y = ensureSpace(doc, y, 24);
   const showMs = getShowTimeWindowMs(show, now);
   const nonShowMs = getNonShowTimeMs(show, now);
-  statCard(doc, MARGIN, half, y, 'Time in show (doors → finish)', formatDuration(showMs), C.amber);
+  statCard(doc, MARGIN, half, y, 'Time in show (doors to finish)', formatDuration(showMs), C.amber);
   statCard(doc, MARGIN + half + 4, half, y, 'Time not in show', formatDuration(nonShowMs), C.slate);
   y += 22;
 
@@ -295,7 +295,7 @@ function timingTable(doc: jsPDF, show: Show, timeFormat: TimeFormat, y: number, 
 
 function totalsRow(doc: jsPDF, show: Show, y: number, now: Date): number {
   const half = (W - MARGIN * 2 - 4) / 2;
-  statCard(doc, MARGIN, half, y, 'Time in show (doors → finish)', formatDuration(getShowTimeWindowMs(show, now)), C.amber);
+  statCard(doc, MARGIN, half, y, 'Time in show (doors to finish)', formatDuration(getShowTimeWindowMs(show, now)), C.amber);
   statCard(doc, MARGIN + half + 4, half, y, 'Time not in show', formatDuration(getNonShowTimeMs(show, now)), C.slate);
   return y + 22;
 }
