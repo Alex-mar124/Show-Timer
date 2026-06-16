@@ -17,6 +17,8 @@ import { InlineHmPicker } from './TimePicker';
 
 interface Props {
   showId: string;
+  /** "yyyy-MM-dd" of the show — forwarded to TimeEditModal for overnight support. */
+  dateAnchor: string;
   segment: Segment;
   timeFormat: TimeFormat;
   expectedStartAt?: Date | null;
@@ -74,7 +76,7 @@ function ExpectedMinInput({
   );
 }
 
-export default function SegmentCard({ showId, segment, timeFormat, expectedStartAt }: Props) {
+export default function SegmentCard({ showId, dateAnchor, segment, timeFormat, expectedStartAt }: Props) {
   const {
     startSegment, stopSegment, holdSegment, resumeSegment, removeSegment,
     settings, addToast, updateSegmentLabel, updateSegmentExpected, updateSegmentNotes,
@@ -515,6 +517,7 @@ export default function SegmentCard({ showId, segment, timeFormat, expectedStart
       {editModal && (
         <TimeEditModal
           showId={showId}
+          dateAnchor={dateAnchor}
           segment={segment}
           field={editModal}
           onClose={() => setEditModal(null)}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Clock, RotateCcw } from 'lucide-react';
+import { X, Clock, RotateCcw, Sunrise } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useShowStore } from '../store';
 import type { Segment } from '../types';
@@ -7,19 +7,30 @@ import { BigTimePicker } from './TimePicker';
 
 interface Props {
   showId: string;
+  /** "yyyy-MM-dd" of the show — used to anchor the saved ISO to the right date. */
+  dateAnchor: string;
   segment: Segment;
   field: 'actualStart' | 'actualEnd';
   onClose: () => void;
 }
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
-export default function TimeEditModal({ showId, segment, field, onClose }: Props) {
+export default function TimeEditModal({ showId, dateAnchor, segment, field, onClose }: Props) {
   const { setSegmentTime, settings } = useShowStore();
   const current = segment[field] ? new Date(segment[field]!) : new Date();
 
   const [hours,   setHours]   = useState(current.getHours());
   const [minutes, setMinutes] = useState(current.getMinutes());
   const [seconds, setSeconds] = useState(current.getSeconds());
+
+  // Detect if existing value is already next-day relative to the anchor.
+  const [nextDay, setNextDay] = useState(() => {
+    if (!segment[field]) return false;
+    const [y, mo, d] = dateAnchor.split('-').map(Number);
+    const anchor = new Date(y, mo - 1, d);
+    const saved = new Date(segment[field]!);
+    return saved.getDate() !== anchor.getDate() || saved.getMonth() !== anchor.getMonth();
+  });
 
   const label = field === 'actualStart' ? 'Start Time' : 'End Time';
 
@@ -28,12 +39,19 @@ export default function TimeEditModal({ showId, segment, field, onClose }: Props
     setHours(now.getHours());
     setMinutes(now.getMinutes());
     setSeconds(now.getSeconds());
+    setNextDay(now.getHours() < 6);
+  }
+
+  function handleTimeChange(h: number, m: number, s: number) {
+    setHours(h); setMinutes(m); setSeconds(s);
+    if (h < 6 && !nextDay) setNextDay(true);
+    if (h >= 6 && nextDay) setNextDay(false);
   }
 
   function handleSave() {
-    const d = new Date();
-    d.setHours(hours, minutes, seconds, 0);
-    setSegmentTime(showId, segment.id, field, d);
+    const [y, mo, d] = dateAnchor.split('-').map(Number);
+    const dt = new Date(y, mo - 1, d + (nextDay ? 1 : 0), hours, minutes, seconds, 0);
+    setSegmentTime(showId, segment.id, field, dt);
     onClose();
   }
 
@@ -84,19 +102,31 @@ export default function TimeEditModal({ showId, segment, field, onClose }: Props
                 minutes={minutes}
                 seconds={seconds}
                 format={settings.timeFormat}
-                onChange={({ hours: h, minutes: m, seconds: s }) => {
-                  setHours(h); setMinutes(m); setSeconds(s);
-                }}
+                onChange={({ hours: h, minutes: m, seconds: s }) => handleTimeChange(h, m, s)}
               />
 
-              {/* Use Now */}
-              <button
-                onClick={useNow}
-                className="w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-show-border hover:bg-show-hover text-slate-400 hover:text-slate-200 text-sm transition-colors"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                Use Current Time
-              </button>
+              {/* Use Now + next-day */}
+              <div className="flex gap-2">
+                <button
+                  onClick={useNow}
+                  className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border border-show-border hover:bg-show-hover text-slate-400 hover:text-slate-200 text-sm transition-colors"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Use Current Time
+                </button>
+                <button
+                  onClick={() => setNextDay(v => !v)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
+                    nextDay
+                      ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+                      : 'border-show-border text-slate-600 hover:text-slate-400'
+                  }`}
+                  title="Time is past midnight — next calendar day"
+                >
+                  <Sunrise className="w-3.5 h-3.5" />
+                  +1 day
+                </button>
+              </div>
 
               {/* Actions */}
               <div className="flex gap-2">

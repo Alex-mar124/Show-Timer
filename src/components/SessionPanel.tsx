@@ -78,6 +78,8 @@ export default function SessionPanel() {
   const [hostPin, setHostPin] = useState(generatePin);
   const [hostOpen, setHostOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(true);
+  const [hostStarting, setHostStarting] = useState(false);
+  const [hostError, setHostError] = useState('');
 
   const currentShow = useShowStore(s => s.shows.find(sh => sh.id === s.currentShowId));
 
@@ -99,10 +101,21 @@ export default function SessionPanel() {
   }
 
   async function handleStartHosting() {
+    setHostError('');
+    setHostStarting(true);
+    setHostOpen(false);
     const name = currentShow
       ? `${currentShow.production || currentShow.title} — ${formatDateShort(currentShow.date)}`
       : 'Show Timer Session';
-    await hostSession(name, hostPin, deviceName || 'Host');
+    try {
+      await hostSession(name, hostPin, deviceName || 'Host');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setHostError(msg || 'Failed to start session — check network permissions.');
+      setHostOpen(true);
+    } finally {
+      setHostStarting(false);
+    }
   }
 
   async function handleJoin() {
@@ -323,12 +336,20 @@ export default function SessionPanel() {
                           </button>
                         </div>
                       </div>
+                      {hostError && (
+                        <p className="text-xs text-red-400 bg-red-500/8 border border-red-500/20 rounded-lg px-3 py-2">
+                          {hostError}
+                        </p>
+                      )}
                       <button
                         onClick={handleStartHosting}
-                        disabled={hostPin.length < 4}
-                        className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-show-base text-sm font-bold transition-all"
+                        disabled={hostPin.length < 4 || hostStarting}
+                        className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-show-base text-sm font-bold transition-all flex items-center justify-center gap-2"
                       >
-                        Start Hosting
+                        {hostStarting
+                          ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Starting…</>
+                          : 'Start Hosting'
+                        }
                       </button>
                     </div>
                   </motion.div>

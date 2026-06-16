@@ -284,6 +284,7 @@ export default function TimerView() {
                       <div className={draggingId === seg.id ? 'ring-1 ring-amber-500/40 ring-inset' : ''}>
                         <SegmentCard
                           showId={show.id}
+                          dateAnchor={show.date}
                           segment={seg}
                           timeFormat={settings.timeFormat}
                           expectedStartAt={expectedStarts.get(seg.id) ?? null}

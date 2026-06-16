@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Clock, RotateCcw } from 'lucide-react';
+import { X, Clock, RotateCcw, Sunrise } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BigTimePicker } from './TimePicker';
 import { formatTime } from '../utils/time';
@@ -34,11 +34,22 @@ export default function TimestampModal({ title, subtitle, value, dateAnchor, for
   const [minutes, setMinutes] = useState(current.getMinutes());
   const [seconds, setSeconds] = useState(current.getSeconds());
 
+  // Detect if saved value is already on the next calendar day vs the anchor.
+  const [nextDay, setNextDay] = useState(() => {
+    if (!value) return false;
+    const [y, mo, d] = dateAnchor.split('-').map(Number);
+    const anchor = new Date(y, mo - 1, d);
+    const saved = new Date(value);
+    return saved.getDate() !== anchor.getDate() || saved.getMonth() !== anchor.getMonth();
+  });
+
   function useNow() {
     const now = new Date();
     setHours(now.getHours());
     setMinutes(now.getMinutes());
     setSeconds(now.getSeconds());
+    // If current time is past midnight (early AM) auto-suggest next day.
+    setNextDay(now.getHours() < 6);
   }
 
   function applyIso(iso: string) {
@@ -46,13 +57,24 @@ export default function TimestampModal({ title, subtitle, value, dateAnchor, for
     setHours(d.getHours());
     setMinutes(d.getMinutes());
     setSeconds(d.getSeconds());
+    // Carry the next-day flag from the suggestion's ISO.
+    const [y, mo, day] = dateAnchor.split('-').map(Number);
+    const anchor = new Date(y, mo - 1, day);
+    setNextDay(d.getDate() !== anchor.getDate() || d.getMonth() !== anchor.getMonth());
   }
 
   function handleSave() {
     const [y, mo, d] = dateAnchor.split('-').map(Number);
-    const dt = new Date(y, mo - 1, d, hours, minutes, seconds, 0);
-    onSave(dt.toISOString());
+    const base = new Date(y, mo - 1, d + (nextDay ? 1 : 0), hours, minutes, seconds, 0);
+    onSave(base.toISOString());
     onClose();
+  }
+
+  // Auto-suggest +1 day when user dials a very early hour (past midnight context).
+  function handleTimeChange(h: number, m: number, s: number) {
+    setHours(h); setMinutes(m); setSeconds(s);
+    if (h < 6 && !nextDay) setNextDay(true);
+    if (h >= 6 && nextDay) setNextDay(false);
   }
 
   return (
@@ -84,14 +106,28 @@ export default function TimestampModal({ title, subtitle, value, dateAnchor, for
               <BigTimePicker
                 hours={hours} minutes={minutes} seconds={seconds}
                 format={format}
-                onChange={({ hours: h, minutes: m, seconds: s }) => { setHours(h); setMinutes(m); setSeconds(s); }}
+                onChange={({ hours: h, minutes: m, seconds: s }) => handleTimeChange(h, m, s)}
               />
 
-              <button onClick={useNow}
-                className="w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-show-border hover:bg-show-hover text-slate-400 hover:text-slate-200 text-sm transition-colors">
-                <RotateCcw className="w-3.5 h-3.5" />
-                Use Current Time
-              </button>
+              <div className="flex gap-2">
+                <button onClick={useNow}
+                  className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border border-show-border hover:bg-show-hover text-slate-400 hover:text-slate-200 text-sm transition-colors">
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Use Current Time
+                </button>
+                <button
+                  onClick={() => setNextDay(v => !v)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
+                    nextDay
+                      ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+                      : 'border-show-border text-slate-600 hover:text-slate-400'
+                  }`}
+                  title="Time is past midnight — next calendar day"
+                >
+                  <Sunrise className="w-3.5 h-3.5" />
+                  +1 day
+                </button>
+              </div>
 
               {suggestions && suggestions.length > 0 && (
                 <div>
