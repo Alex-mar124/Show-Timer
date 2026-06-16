@@ -103,7 +103,7 @@ export default function SegmentCard({ showId, dateAnchor, segment, timeFormat, e
   // Per-type hex colour — used for left bar, progress fill, and drag handle
   const segColor = isOnHold || segment.type === 'interval'
     ? '#a855f7'
-    : segment.type === 'bump_in'   ? '#f97316'
+    : segment.type === 'bump_in'   ? '#84cc16'
     : segment.type === 'bump_out'  ? '#f43f5e'
     : segment.type === 'rehearsal' ? '#14b8a6'
     : segment.type === 'plotting'  ? '#6366f1'
@@ -115,7 +115,7 @@ export default function SegmentCard({ showId, dateAnchor, segment, timeFormat, e
     ? ''
     : isComplete
     ? 'border-l-[3px] border-l-green-600/50'
-    : segment.type === 'bump_in'   ? 'border-l-[3px] border-l-orange-500/40'
+    : segment.type === 'bump_in'   ? 'border-l-[3px] border-l-lime-500/40'
     : segment.type === 'bump_out'  ? 'border-l-[3px] border-l-rose-500/40'
     : segment.type === 'rehearsal' ? 'border-l-[3px] border-l-teal-500/40'
     : segment.type === 'plotting'  ? 'border-l-[3px] border-l-indigo-500/40'

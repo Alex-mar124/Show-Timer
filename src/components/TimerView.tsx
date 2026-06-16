@@ -31,7 +31,7 @@ const PERF_TYPE_LABEL: Record<PerformanceType, string> = {
 };
 
 const DAY_TYPE_STYLE: Record<string, { label: string; cls: string }> = {
-  bump_in:   { label: 'Bump In',          cls: 'text-orange-300 bg-orange-500/10' },
+  bump_in:   { label: 'Bump In',          cls: 'text-lime-300 bg-lime-500/10' },
   rehearsal: { label: 'Rehearsal',        cls: 'text-teal-300 bg-teal-500/10' },
   plotting:  { label: 'Plotting Session', cls: 'text-indigo-300 bg-indigo-500/10' },
   bump_out:  { label: 'Bump Out',         cls: 'text-rose-300 bg-rose-500/10' },
@@ -61,18 +61,18 @@ export default function TimerView() {
   );
 
   const clockGlowColor = useMemo(() => {
-    if (!show) return 'rgba(245, 158, 11, 0.05)';
+    if (!show) return 'rgba(245, 158, 11, 0.12)';
     const active = show.segments.find(s => getSegmentStatus(s) === 'active');
-    if (!active) return 'rgba(245, 158, 11, 0.05)';
+    if (!active) return 'rgba(245, 158, 11, 0.12)';
     const onHold = active.holds.some(h => !h.endTime);
-    if (onHold || active.type === 'interval') return 'rgba(168, 85, 247, 0.09)';
+    if (onHold || active.type === 'interval') return 'rgba(168, 85, 247, 0.28)';
     switch (active.type) {
-      case 'bump_in':   return 'rgba(249, 115, 22, 0.09)';
-      case 'bump_out':  return 'rgba(244, 63, 94, 0.09)';
-      case 'rehearsal': return 'rgba(20, 184, 166, 0.09)';
-      case 'plotting':  return 'rgba(99, 102, 241, 0.09)';
-      case 'doors':     return 'rgba(14, 165, 233, 0.09)';
-      default:          return 'rgba(245, 158, 11, 0.07)';
+      case 'bump_in':   return 'rgba(132, 204, 22, 0.28)';
+      case 'bump_out':  return 'rgba(244, 63, 94, 0.28)';
+      case 'rehearsal': return 'rgba(20, 184, 166, 0.28)';
+      case 'plotting':  return 'rgba(99, 102, 241, 0.28)';
+      case 'doors':     return 'rgba(14, 165, 233, 0.28)';
+      default:          return 'rgba(245, 158, 11, 0.26)';
     }
   }, [show]);
 

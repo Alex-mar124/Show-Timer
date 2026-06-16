@@ -59,7 +59,7 @@ function Colon({ dim }: { dim?: boolean }) {
   );
 }
 
-export default function Clock({ timeFormat, expectedEnd, glowColor = 'rgba(245, 158, 11, 0.07)' }: Props) {
+export default function Clock({ timeFormat, expectedEnd, glowColor = 'rgba(245, 158, 11, 0.26)' }: Props) {
   const now = useClock();
 
   const h    = format(now, timeFormat === '12h' ? 'hh' : 'HH');
@@ -72,7 +72,7 @@ export default function Clock({ timeFormat, expectedEnd, glowColor = 'rgba(245, 
     <div
       className="relative flex flex-col items-center pt-7 pb-5 select-none"
       style={{
-        background: `radial-gradient(ellipse 55% 40% at 50% 65%, ${glowColor} 0%, transparent 70%)`,
+        background: `radial-gradient(ellipse 85% 60% at 50% 70%, ${glowColor} 0%, transparent 80%)`,
         transition: 'background 1s ease',
       }}
     >
