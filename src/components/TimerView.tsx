@@ -61,18 +61,18 @@ export default function TimerView() {
   );
 
   const clockGlowColor = useMemo(() => {
-    if (!show) return 'rgba(245, 158, 11, 0.12)';
+    if (!show) return 'rgba(245, 158, 11, 0.08)';
     const active = show.segments.find(s => getSegmentStatus(s) === 'active');
-    if (!active) return 'rgba(245, 158, 11, 0.12)';
+    if (!active) return 'rgba(245, 158, 11, 0.08)';
     const onHold = active.holds.some(h => !h.endTime);
-    if (onHold || active.type === 'interval') return 'rgba(168, 85, 247, 0.28)';
+    if (onHold || active.type === 'interval') return 'rgba(168, 85, 247, 0.16)';
     switch (active.type) {
-      case 'bump_in':   return 'rgba(132, 204, 22, 0.28)';
-      case 'bump_out':  return 'rgba(244, 63, 94, 0.28)';
-      case 'rehearsal': return 'rgba(20, 184, 166, 0.28)';
-      case 'plotting':  return 'rgba(99, 102, 241, 0.28)';
-      case 'doors':     return 'rgba(14, 165, 233, 0.28)';
-      default:          return 'rgba(245, 158, 11, 0.26)';
+      case 'bump_in':   return 'rgba(132, 204, 22, 0.16)';
+      case 'bump_out':  return 'rgba(244, 63, 94, 0.16)';
+      case 'rehearsal': return 'rgba(20, 184, 166, 0.16)';
+      case 'plotting':  return 'rgba(99, 102, 241, 0.16)';
+      case 'doors':     return 'rgba(14, 165, 233, 0.16)';
+      default:          return 'rgba(245, 158, 11, 0.14)';
     }
   }, [show]);
 
