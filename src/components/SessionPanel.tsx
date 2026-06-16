@@ -80,6 +80,8 @@ export default function SessionPanel() {
   const [joinOpen, setJoinOpen] = useState(true);
   const [hostStarting, setHostStarting] = useState(false);
   const [hostError, setHostError] = useState('');
+  const [hostClip, setHostClip] = useState(true);
+  const [joinClip, setJoinClip] = useState(true);
 
   const currentShow = useShowStore(s => s.shows.find(sh => sh.id === s.currentShowId));
 
@@ -290,10 +292,10 @@ export default function SessionPanel() {
             </div>
 
             {/* ── Host card ── */}
-            <div className="rounded-xl border border-show-border bg-show-card overflow-hidden">
+            <div className="rounded-xl border border-show-border bg-show-card">
               <button
                 onClick={() => setHostOpen(v => !v)}
-                className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-show-hover transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-show-hover transition-colors rounded-t-xl"
               >
                 <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
                   <MonitorPlay className="w-4 h-4 text-amber-400" />
@@ -312,7 +314,9 @@ export default function SessionPanel() {
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
                     transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
+                    className={hostClip ? 'overflow-hidden' : ''}
+                    onAnimationStart={() => setHostClip(true)}
+                    onAnimationComplete={() => { if (hostOpen) setHostClip(false); }}
                   >
                     <div className="px-4 pb-4 pt-1 space-y-3 border-t border-show-border">
                       <div>
@@ -358,10 +362,10 @@ export default function SessionPanel() {
             </div>
 
             {/* ── Join card ── */}
-            <div className="rounded-xl border border-show-border bg-show-card overflow-hidden">
+            <div className="rounded-xl border border-show-border bg-show-card">
               <button
                 onClick={() => setJoinOpen(v => !v)}
-                className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-show-hover transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-show-hover transition-colors rounded-t-xl"
               >
                 <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
                   <Wifi className="w-4 h-4 text-blue-400" />
@@ -383,7 +387,9 @@ export default function SessionPanel() {
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
                     transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
+                    className={joinClip ? 'overflow-hidden' : ''}
+                    onAnimationStart={() => setJoinClip(true)}
+                    onAnimationComplete={() => { if (joinOpen) setJoinClip(false); }}
                   >
                     <div className="px-4 pb-4 pt-1 space-y-2.5 border-t border-show-border">
                       {/* Discovered sessions */}
