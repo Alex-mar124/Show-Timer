@@ -69,13 +69,18 @@ export default function Clock({ timeFormat, expectedEnd, glowColor = 'rgba(245, 
   const date = formatDateLong(now);
 
   return (
-    <div
-      className="relative flex flex-col items-center pt-7 pb-5 select-none"
-      style={{
-        background: `radial-gradient(ellipse 85% 60% at 50% 70%, ${glowColor} 0%, transparent 100%)`,
-        transition: 'background 1s ease',
-      }}
-    >
+    <div className="relative flex flex-col items-center pt-7 pb-5 select-none">
+
+      {/* Ambient glow — oversized absolute div so it bleeds below without a hard clip */}
+      <div
+        className="absolute pointer-events-none"
+        style={{
+          inset: '-10px -120px -120px -120px',
+          zIndex: 0,
+          background: `radial-gradient(ellipse 55% 45% at 50% 28%, ${glowColor} 0%, transparent 100%)`,
+          transition: 'background 1s ease',
+        }}
+      />
 
       {/* Tile row */}
       <div className="flex items-center gap-2.5 relative z-10">
