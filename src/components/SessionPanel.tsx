@@ -5,7 +5,7 @@ import {
   MonitorPlay, LogOut, RefreshCw, ChevronDown, ChevronRight,
   Monitor, Apple, User,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useShowStore } from '../store';
 import type { DiscoveredSession } from '../types';
 import { formatDateShort } from '../utils/time';
@@ -80,8 +80,6 @@ export default function SessionPanel() {
   const [joinOpen, setJoinOpen] = useState(true);
   const [hostStarting, setHostStarting] = useState(false);
   const [hostError, setHostError] = useState('');
-  const [hostClip, setHostClip] = useState(true);
-  const [joinClip, setJoinClip] = useState(true);
 
   const currentShow = useShowStore(s => s.shows.find(sh => sh.id === s.currentShowId));
 
@@ -307,17 +305,14 @@ export default function SessionPanel() {
                 <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform duration-200 ${hostOpen ? 'rotate-180' : ''}`} />
               </button>
 
-              <AnimatePresence initial={false}>
-                {hostOpen && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className={hostClip ? 'overflow-hidden' : ''}
-                    onAnimationStart={() => setHostClip(true)}
-                    onAnimationComplete={() => { if (hostOpen) setHostClip(false); }}
-                  >
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateRows: hostOpen ? '1fr' : '0fr',
+                  transition: 'grid-template-rows 0.2s ease',
+                }}
+              >
+                <div className="overflow-hidden">
                     <div className="px-4 pb-4 pt-1 space-y-3 border-t border-show-border">
                       <div>
                         <label className="block text-[11px] text-slate-500 uppercase tracking-wider mb-2">
@@ -356,9 +351,8 @@ export default function SessionPanel() {
                         }
                       </button>
                     </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                </div>
+              </div>
             </div>
 
             {/* ── Join card ── */}
@@ -380,17 +374,14 @@ export default function SessionPanel() {
                 </div>
               </button>
 
-              <AnimatePresence initial={false}>
-                {joinOpen && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className={joinClip ? 'overflow-hidden' : ''}
-                    onAnimationStart={() => setJoinClip(true)}
-                    onAnimationComplete={() => { if (joinOpen) setJoinClip(false); }}
-                  >
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateRows: joinOpen ? '1fr' : '0fr',
+                  transition: 'grid-template-rows 0.2s ease',
+                }}
+              >
+                <div className="overflow-hidden">
                     <div className="px-4 pb-4 pt-1 space-y-2.5 border-t border-show-border">
                       {/* Discovered sessions */}
                       {discovered.length > 0 && (
@@ -471,9 +462,8 @@ export default function SessionPanel() {
                         )}
                       </button>
                     </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                </div>
+              </div>
             </div>
 
             {/* Local IP */}
