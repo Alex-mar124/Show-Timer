@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { X, Plus, Trash2, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AppLogo from './AppLogo';
 import { useShowStore } from '../store';
@@ -107,6 +107,27 @@ function SegmentRow({ seg, onUpdate, onRemove, canRemove }: SegmentRowProps) {
   );
 }
 
+interface ScheduledDay {
+  id: string;
+  date: string;
+  dayType: DayType;
+  performanceType: PerformanceType | null;
+}
+
+const DAY_TYPE_OPTIONS: Array<{ value: DayType; label: string }> = [
+  { value: 'performance', label: 'Performance' },
+  { value: 'bump_in',     label: 'Bump In' },
+  { value: 'rehearsal',   label: 'Rehearsal' },
+  { value: 'plotting',    label: 'Plotting' },
+  { value: 'bump_out',    label: 'Bump Out' },
+];
+
+function nextDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const next = new Date(y, m - 1, d + 1);
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+}
+
 export default function RunSetupModal() {
   const { newRunModalOpen, setNewRunModalOpen, createRun, settings } = useShowStore();
 
@@ -120,6 +141,7 @@ export default function RunSetupModal() {
   const [showStartTime, setShowStartTime] = useState('');
   const [firstDate, setFirstDate] = useState(todayISO());
   const [templateSegs, setTemplateSegs] = useState<TemplateSegment[]>(defaultTemplateSegments);
+  const [scheduledDays, setScheduledDays] = useState<ScheduledDay[]>([]);
 
   function reset() {
     setProduction(''); setName(''); setVenue('');
@@ -127,6 +149,27 @@ export default function RunSetupModal() {
     setDoorsTime(''); setShowStartTime('');
     setFirstDate(todayISO());
     setTemplateSegs(defaultTemplateSegments());
+    setScheduledDays([]);
+  }
+
+  function addScheduledDay() {
+    const lastDate = scheduledDays.length > 0
+      ? scheduledDays[scheduledDays.length - 1].date
+      : firstDate;
+    setScheduledDays(prev => [...prev, {
+      id: crypto.randomUUID(),
+      date: nextDate(lastDate),
+      dayType: 'performance',
+      performanceType: null,
+    }]);
+  }
+
+  function updateScheduledDay(id: string, patch: Partial<ScheduledDay>) {
+    setScheduledDays(prev => prev.map(d => d.id === id ? { ...d, ...patch } : d));
+  }
+
+  function removeScheduledDay(id: string) {
+    setScheduledDays(prev => prev.filter(d => d.id !== id));
   }
 
   function close() { setNewRunModalOpen(false); reset(); }
@@ -146,6 +189,7 @@ export default function RunSetupModal() {
       defaultShowStartTime: showStartTime,
       templateSegments: orderedSegs,
       firstShowDate: firstDate,
+      scheduledDays: scheduledDays.map(d => ({ date: d.date, dayType: d.dayType, performanceType: d.performanceType })),
     });
     reset();
   }
@@ -356,6 +400,60 @@ export default function RunSetupModal() {
                       Add segment
                     </button>
                   </div>}
+
+                  {/* Run Schedule */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Run Schedule</p>
+                      <span className="text-[10px] text-slate-700">Pre-plan your days — add more anytime</span>
+                    </div>
+
+                    {/* Day 1 — locked summary */}
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-show-surface border border-show-border">
+                      <Calendar className="w-3.5 h-3.5 text-amber-400/60 shrink-0" />
+                      <span className="font-mono text-xs text-slate-400 w-24 shrink-0">{firstDate}</span>
+                      <span className="text-xs text-amber-400 flex-1">{FIRST_DAY_OPTIONS.find(o => o.value === firstDayType)?.label ?? 'Day 1'}</span>
+                      <span className="text-[10px] text-slate-600">Day 1</span>
+                    </div>
+
+                    {scheduledDays.map((day, i) => (
+                      <div key={day.id} className="flex items-center gap-2">
+                        <Calendar className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                        <input
+                          type="date"
+                          value={day.date}
+                          onChange={e => updateScheduledDay(day.id, { date: e.target.value })}
+                          className="font-mono bg-show-surface border border-show-border rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-amber-500/50 transition-colors w-32 shrink-0"
+                        />
+                        <select
+                          value={day.dayType}
+                          onChange={e => updateScheduledDay(day.id, { dayType: e.target.value as DayType })}
+                          className="flex-1 bg-show-surface border border-show-border rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-amber-500/50 transition-colors"
+                        >
+                          {DAY_TYPE_OPTIONS.map(o => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                        <span className="text-[10px] text-slate-600 shrink-0">Day {i + 2}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeScheduledDay(day.id)}
+                          className="w-6 h-6 flex items-center justify-center rounded text-slate-700 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={addScheduledDay}
+                      className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-amber-400 transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add day
+                    </button>
+                  </div>
 
                   {/* Copy Strategy */}
                   <div className="space-y-2">

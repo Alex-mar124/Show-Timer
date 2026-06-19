@@ -184,6 +184,7 @@ interface ShowStore {
     templateSegments: TemplateSegment[];
     firstShowDate: string; firstPerformanceType?: PerformanceType;
     firstDayType?: DayType;
+    scheduledDays?: Array<{ date: string; dayType: DayType; performanceType?: PerformanceType | null }>;
   }) => void;
   startNextPerformance: (runId: string, performanceType?: PerformanceType, dayType?: DayType) => void;
   completeRun: (runId: string) => void;
@@ -851,11 +852,61 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       dayType: firstDayType === 'performance' ? undefined : firstDayType,
     };
 
-    run.showIds = [showId];
+    // Build additional pre-scheduled days
+    let perfCount = firstDayType === 'performance' ? 1 : 0;
+    const additionalShows: Show[] = (data.scheduledDays ?? []).map(day => {
+      if (day.dayType === 'performance') perfCount++;
+
+      let extraSegs: Segment[];
+      if (day.dayType === 'performance') {
+        extraSegs = data.templateSegments.map(t => ({
+          id: uid(), type: t.type, label: t.label,
+          expectedDurationMinutes: t.expectedDurationMinutes,
+          plannedStart: null, plannedEnd: null,
+          actualStart: null, actualEnd: null, holds: [], notes: '', order: t.order,
+        }));
+        if (!extraSegs.some(s => s.type === 'pre_show')) {
+          extraSegs = [{ id: uid(), type: 'pre_show' as const, label: 'Pre Show', expectedDurationMinutes: 60, plannedStart: null, plannedEnd: null, actualStart: null, actualEnd: null, holds: [], notes: '', order: -1 }, ...extraSegs];
+        }
+        if (!extraSegs.some(s => s.type === 'post_show')) {
+          extraSegs = [...extraSegs, { id: uid(), type: 'post_show' as const, label: 'Post Show', expectedDurationMinutes: 30, plannedStart: null, plannedEnd: null, actualStart: null, actualEnd: null, holds: [], notes: '', order: extraSegs.length }];
+        }
+        extraSegs = extraSegs.map((s, i) => ({ ...s, order: i }));
+      } else {
+        const def = NON_PERF_SINGLE[day.dayType];
+        if (!def) return null as unknown as Show;
+        extraSegs = [{ id: uid(), type: def.type, label: def.label, expectedDurationMinutes: def.exp, plannedStart: null, plannedEnd: null, actualStart: null, actualEnd: null, holds: [], notes: '', order: 0 }];
+      }
+
+      const EXTRA_TITLES: Record<DayType, string> = {
+        performance: `Night ${perfCount}`, rehearsal: 'Rehearsal',
+        plotting: 'Plotting', bump_in: 'Bump In', bump_out: 'Bump Out',
+      };
+
+      return {
+        id: uid(),
+        title: EXTRA_TITLES[day.dayType],
+        production: data.production,
+        date: day.date,
+        plannedStartTime: toISO(day.date, data.defaultShowStartTime),
+        doorsOpenTime: toISO(day.date, data.defaultDoorsTime),
+        segments: extraSegs,
+        notes: '', techNotes: '',
+        ...defaultPeople(),
+        createdAt: nowISO(),
+        completedAt: null,
+        runId,
+        performanceNumber: day.dayType === 'performance' ? perfCount : undefined,
+        performanceType: day.dayType === 'performance' ? (day.performanceType ?? data.performanceType ?? undefined) : undefined,
+        dayType: day.dayType === 'performance' ? undefined : day.dayType,
+      } satisfies Show;
+    }).filter(Boolean);
+
+    run.showIds = [showId, ...additionalShows.map(s => s.id)];
 
     set(s => ({
       runs: [run, ...s.runs],
-      shows: [firstShow, ...s.shows],
+      shows: [firstShow, ...additionalShows, ...s.shows],
       currentShowId: showId,
       newRunModalOpen: false,
       view: 'timer',

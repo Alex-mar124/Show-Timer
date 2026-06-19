@@ -1,4 +1,4 @@
-import { Plus, ChevronDown, RefreshCw, ChevronRight, ChevronUp, Flag, Users, ListChecks, FileText } from 'lucide-react';
+import { Plus, ChevronDown, RefreshCw, ChevronRight, ChevronUp, Flag, Users, ListChecks, FileText, ChevronLeft } from 'lucide-react';
 import AppLogo from './AppLogo';
 import PeoplePanel from './PeoplePanel';
 import ReportTab from './ReportTab';
@@ -40,7 +40,7 @@ const DAY_TYPE_STYLE: Record<string, { label: string; cls: string }> = {
 export default function TimerView() {
   const {
     shows, runs, currentShowId, settings,
-    setNewShowModalOpen, setNewRunModalOpen,
+    setNewShowModalOpen, setNewRunModalOpen, setCurrentShow,
     addSegment, addShowFinish, updateShowNotes, reorderSegments,
     syncTemplateFromShow, startNextPerformance, addToast,
   } = useShowStore();
@@ -201,6 +201,36 @@ export default function TimerView() {
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            {/* Prev / Next navigation within a run */}
+            {currentRun && (() => {
+              const idx = currentRun.showIds.indexOf(show.id);
+              const prevId = idx > 0 ? currentRun.showIds[idx - 1] : null;
+              const nextId = idx < currentRun.showIds.length - 1 ? currentRun.showIds[idx + 1] : null;
+              if (!prevId && !nextId) return null;
+              return (
+                <div className="flex items-center gap-0.5 border border-show-border rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => prevId && setCurrentShow(prevId)}
+                    disabled={!prevId}
+                    title="Previous day"
+                    className="px-2 py-1.5 text-slate-600 hover:text-amber-400 hover:bg-show-hover disabled:opacity-25 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="px-1.5 text-[10px] text-slate-600 font-mono tabular select-none">
+                    {idx + 1}/{currentRun.showIds.length}
+                  </span>
+                  <button
+                    onClick={() => nextId && setCurrentShow(nextId)}
+                    disabled={!nextId}
+                    title="Next day"
+                    className="px-2 py-1.5 text-slate-600 hover:text-amber-400 hover:bg-show-hover disabled:opacity-25 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              );
+            })()}
             {currentRun && (
               <button
                 onClick={() => {
