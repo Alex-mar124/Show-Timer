@@ -93,9 +93,12 @@ function header(doc: jsPDF, kicker: string, title: string, subtitle: string | nu
   doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.slate);
   doc.text(dateStr, MARGIN, y);
 
-  doc.setFontSize(8); doc.setTextColor(...C.slate);
+  doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.amber);
+  const brand = 'KARRALYKA';
+  doc.text(brand, W - MARGIN - doc.getTextWidth(brand), 15);
+  doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.slate);
   const gen = `Generated ${format(new Date(), 'HH:mm · d MMM yyyy')}`;
-  doc.text(gen, W - MARGIN - doc.getTextWidth(gen), 18);
+  doc.text(gen, W - MARGIN - doc.getTextWidth(gen), 21);
 
   y += 8;
   return divider(doc, y);
@@ -107,9 +110,10 @@ function footer(doc: jsPDF): void {
     doc.setPage(i);
     doc.setDrawColor(...C.amber); doc.setLineWidth(0.4);
     doc.line(MARGIN, PAGE_H - 14, W - MARGIN, PAGE_H - 14);
-    doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.slate);
-    doc.text('Show Timer · Professional Theatre Timing', MARGIN, PAGE_H - 9);
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.amber);
+    doc.text('KARRALYKA', MARGIN, PAGE_H - 9);
     const ps = `Page ${i} of ${pages}`;
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.slate);
     doc.text(ps, W - MARGIN - doc.getTextWidth(ps), PAGE_H - 9);
   }
 }
@@ -339,6 +343,11 @@ export function generatePrintablePDF(show: Show, timeFormat: TimeFormat): void {
   // ── Page 2 — TECH COPY ─────────────────────────────────────────────────────
   doc.addPage();
   y = header(doc, 'TECH COPY', title, sub, formatDateLong(show.date));
+
+  y = sectionLabel(doc, 'Client Access', y) + 1;
+  statCard(doc, MARGIN, half, y, 'Arrival', formatTime(effectiveClientArrival(show), timeFormat), C.green);
+  statCard(doc, MARGIN + half + 4, half, y, 'Departure', formatTime(effectiveClientDeparture(show), timeFormat), C.rose);
+  y += 22;
 
   if (show.staff.length > 0) {
     y = sectionLabel(doc, 'Staff', y);

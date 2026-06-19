@@ -103,11 +103,13 @@ export default function SegmentCard({ showId, dateAnchor, segment, timeFormat, e
   // Per-type hex colour — used for left bar, progress fill, and drag handle
   const segColor = isOnHold || segment.type === 'interval'
     ? '#a855f7'
+    : segment.type === 'pre_show'  ? '#4ade80'
     : segment.type === 'bump_in'   ? '#84cc16'
     : segment.type === 'bump_out'  ? '#f43f5e'
     : segment.type === 'rehearsal' ? '#14b8a6'
     : segment.type === 'plotting'  ? '#6366f1'
     : segment.type === 'doors'     ? '#0ea5e9'
+    : segment.type === 'post_show' ? '#f472b6'
     : '#f59e0b';
 
   // Static left bar for non-active segments; active uses absolute progress bar instead
@@ -115,13 +117,15 @@ export default function SegmentCard({ showId, dateAnchor, segment, timeFormat, e
     ? ''
     : isComplete
     ? 'border-l-[3px] border-l-green-600/50'
+    : segment.type === 'pre_show'  ? 'border-l-[3px] border-l-green-400/40'
     : segment.type === 'bump_in'   ? 'border-l-[3px] border-l-lime-500/40'
     : segment.type === 'bump_out'  ? 'border-l-[3px] border-l-rose-500/40'
     : segment.type === 'rehearsal' ? 'border-l-[3px] border-l-teal-500/40'
     : segment.type === 'plotting'  ? 'border-l-[3px] border-l-indigo-500/40'
+    : segment.type === 'post_show' ? 'border-l-[3px] border-l-pink-400/40'
     : 'border-l-[3px] border-l-white/5';
 
-  const SCHEDULE_TYPES: Set<SegmentType> = new Set(['bump_in', 'bump_out', 'rehearsal', 'plotting', 'doors']);
+  const SCHEDULE_TYPES: Set<SegmentType> = new Set(['pre_show', 'bump_in', 'bump_out', 'rehearsal', 'plotting', 'doors', 'post_show']);
   const showSchedule = SCHEDULE_TYPES.has(segment.type);
 
   const [editModal,    setEditModal]    = useState<'actualStart' | 'actualEnd' | null>(null);

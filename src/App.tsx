@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { History, Settings, Plus, Timer, Layers, ChevronDown, Upload } from 'lucide-react';
+import { Clapperboard, Settings, Plus, Timer, Layers, ChevronDown, Upload } from 'lucide-react';
 import AppLogo, { AppLogoMark } from './components/AppLogo';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useShowStore } from './store';
@@ -18,9 +18,9 @@ import { pickFile, parseBundle } from './utils/exchange';
 import type { View } from './types';
 
 const NAV_ITEMS: Array<{ view: View; Icon: React.ElementType; label: string }> = [
-  { view: 'timer',   Icon: Timer,   label: 'Timer' },
-  { view: 'history', Icon: History, label: 'History' },
-  { view: 'settings',Icon: Settings,label: 'Settings' },
+  { view: 'timer',   Icon: Timer,       label: 'Timer' },
+  { view: 'history', Icon: Clapperboard, label: 'Shows' },
+  { view: 'settings',Icon: Settings,    label: 'Settings' },
 ];
 
 export default function App() {
@@ -135,12 +135,12 @@ export default function App() {
       {/* Header */}
       <header className="shrink-0 flex items-center px-4 gap-3 border-b border-show-border bg-show-surface" style={{ height: '60px' }}>
 
-        {/* Brand — styled like a rack-unit equipment plate */}
+        {/* Brand */}
         <div className="flex items-center gap-2.5 shrink-0">
           <AppLogo size={30} className="shrink-0" />
           <div className="flex flex-col leading-none gap-0.5">
-            <span className="font-mono text-[8px] tracking-[0.3em] text-slate-700 uppercase">Show</span>
-            <span className="font-mono text-[10px] tracking-[0.25em] text-amber-400/90 uppercase font-bold">Timer</span>
+            <span className="font-mono text-[8px] tracking-[0.22em] text-slate-400 uppercase">Show Timer</span>
+            <span className="font-mono text-[10px] tracking-[0.18em] text-amber-400/90 uppercase font-bold">Karralyka</span>
           </div>
           {/* Vertical rule accent */}
           <div className="w-px h-5 bg-show-border ml-0.5" />

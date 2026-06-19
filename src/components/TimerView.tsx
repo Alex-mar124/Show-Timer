@@ -67,11 +67,13 @@ export default function TimerView() {
     const onHold = active.holds.some(h => !h.endTime);
     if (onHold || active.type === 'interval') return 'rgba(168, 85, 247, 0.16)';
     switch (active.type) {
+      case 'pre_show':  return 'rgba(74, 222, 128, 0.16)';
       case 'bump_in':   return 'rgba(132, 204, 22, 0.16)';
       case 'bump_out':  return 'rgba(244, 63, 94, 0.16)';
       case 'rehearsal': return 'rgba(20, 184, 166, 0.16)';
       case 'plotting':  return 'rgba(99, 102, 241, 0.16)';
       case 'doors':     return 'rgba(14, 165, 233, 0.16)';
+      case 'post_show': return 'rgba(244, 114, 182, 0.16)';
       default:          return 'rgba(245, 158, 11, 0.14)';
     }
   }, [show]);
@@ -134,10 +136,12 @@ export default function TimerView() {
   const showEndSeg = segments.find(s => s.type === 'show_end') ?? segments[segments.length - 1];
   const expectedEnd = showEndSeg ? (expectedStarts.get(showEndSeg.id) ?? null) : null;
   const totalExpectedMin = segments
-    .filter(s => s.expectedDurationMinutes)
+    .filter(s => s.expectedDurationMinutes && s.type !== 'pre_show' && s.type !== 'post_show')
     .reduce((acc, s) => acc + (s.expectedDurationMinutes ?? 0), 0);
 
   const addTypes: Array<{ type: SegmentType; label: string; group?: string }> = [
+    { type: 'pre_show',      label: 'Pre Show',         group: 'company' },
+    { type: 'post_show',     label: 'Post Show',        group: 'company' },
     { type: 'act',           label: 'Act',              group: 'show' },
     { type: 'interval',      label: 'Interval',         group: 'show' },
     { type: 'curtain_call',  label: 'Curtain Call',     group: 'show' },
@@ -152,8 +156,8 @@ export default function TimerView() {
   const hasShowFinish = segments.some(s => s.type === 'show_end');
 
   function segmentZone(type: SegmentType): 'pre' | 'show' | 'post' {
-    if (type === 'bump_out') return 'post';
-    if (PRODUCTION_TYPES.has(type)) return 'pre';
+    if (type === 'post_show' || type === 'bump_out') return 'post';
+    if (type === 'pre_show' || PRODUCTION_TYPES.has(type)) return 'pre';
     return 'show';
   }
 
@@ -279,10 +283,18 @@ export default function TimerView() {
                 {segments.map((seg, i) => {
                   const prevZone = i > 0 ? segmentZone(segments[i - 1].type) : null;
                   const currZone = segmentZone(seg.type);
+                  const showPreDivider   = prevZone !== null && prevZone !== 'pre'   && currZone === 'pre';
                   const showShowDivider  = prevZone !== null && prevZone !== 'show'  && currZone === 'show';
                   const showPostDivider  = prevZone !== null && prevZone !== 'post'  && currZone === 'post';
                   return (
                     <div key={seg.id}>
+                      {showPreDivider && (
+                        <div className="flex items-center gap-3 px-4 py-1.5 bg-show-surface/60 border-b border-show-border">
+                          <div className="h-px flex-1 bg-green-400/20" />
+                          <span className="text-[9px] font-bold text-green-400/50 uppercase tracking-[0.2em]">Pre Show</span>
+                          <div className="h-px flex-1 bg-green-400/20" />
+                        </div>
+                      )}
                       {showShowDivider && (
                         <div className="flex items-center gap-3 px-4 py-1.5 bg-show-surface/60 border-b border-show-border">
                           <div className="h-px flex-1 bg-amber-500/20" />
@@ -292,9 +304,9 @@ export default function TimerView() {
                       )}
                       {showPostDivider && (
                         <div className="flex items-center gap-3 px-4 py-1.5 bg-show-surface/60 border-b border-show-border">
-                          <div className="h-px flex-1 bg-rose-500/20" />
-                          <span className="text-[9px] font-bold text-rose-500/50 uppercase tracking-[0.2em]">Post-Show</span>
-                          <div className="h-px flex-1 bg-rose-500/20" />
+                          <div className="h-px flex-1 bg-pink-500/20" />
+                          <span className="text-[9px] font-bold text-pink-500/50 uppercase tracking-[0.2em]">Post Show</span>
+                          <div className="h-px flex-1 bg-pink-500/20" />
                         </div>
                       )}
                       <div className={draggingId === seg.id ? 'ring-1 ring-amber-500/40 ring-inset' : ''}>
@@ -351,7 +363,18 @@ export default function TimerView() {
                   exit={{ opacity: 0, y: -4 }}
                   className="absolute top-full left-0 mt-1.5 z-20 bg-show-card border border-show-border rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden min-w-[180px]"
                 >
-                  <p className="px-3 pt-2.5 pb-1 text-[10px] text-slate-600 uppercase tracking-widest font-semibold">Show</p>
+                  <p className="px-3 pt-2.5 pb-1 text-[10px] text-slate-600 uppercase tracking-widest font-semibold">Company</p>
+                  {addTypes.filter(t => t.group === 'company').map(({ type, label }) => (
+                    <button
+                      key={type}
+                      onClick={() => { addSegment(show.id, type); setAddMenuOpen(false); }}
+                      className="flex w-full items-center px-4 py-2.5 text-sm text-slate-300 hover:bg-show-hover hover:text-slate-100 transition-colors"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <div className="border-t border-show-border/50 my-1" />
+                  <p className="px-3 pt-1.5 pb-1 text-[10px] text-slate-600 uppercase tracking-widest font-semibold">Show</p>
                   {addTypes.filter(t => t.group === 'show').map(({ type, label }) => (
                     <button
                       key={type}

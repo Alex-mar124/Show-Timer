@@ -689,13 +689,15 @@ export const useShowStore = create<ShowStore>((set, get) => ({
 
   addSegment: (showId, type, afterOrder) => {
     const labelMap: Record<SegmentType, string> = {
+      pre_show: 'Pre Show',
       doors: 'Doors Open', house_open: 'House Open', act: 'Act',
       interval: 'Interval', curtain_call: 'Curtain Call', show_end: 'Show End', custom: 'Custom',
       rehearsal: 'Rehearsal', plotting: 'Plotting Session',
       bump_in: 'Bump In', bump_out: 'Bump Out',
+      post_show: 'Post Show',
     };
     const defaultDuration: Partial<Record<SegmentType, number>> = {
-      act: 55, interval: 20, rehearsal: 240, plotting: 300, doors: 30,
+      pre_show: 60, act: 55, interval: 20, rehearsal: 240, plotting: 300, doors: 30, post_show: 30,
     };
     set(s => {
       const show = s.shows.find(sh => sh.id === showId);
@@ -899,7 +901,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
         ? [...lastShow.segments].sort((a, b) => a.order - b.order)
         : [...run.templateSegments].sort((a, b) => a.order - b.order));
 
-    const segments: Segment[] = sourceSegments.map(s => ({
+    let segments: Segment[] = sourceSegments.map(s => ({
       id: uid(),
       type: s.type,
       label: s.label,
@@ -912,6 +914,23 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       notes: '',
       order: s.order,
     }));
+
+    // Auto-inject pre/post show for performance days if not already present
+    if (dayType === 'performance') {
+      if (!segments.some(s => s.type === 'pre_show')) {
+        segments = [
+          { id: uid(), type: 'pre_show', label: 'Pre Show', expectedDurationMinutes: 60, plannedStart: null, plannedEnd: null, actualStart: null, actualEnd: null, holds: [], notes: '', order: -1 },
+          ...segments,
+        ];
+      }
+      if (!segments.some(s => s.type === 'post_show')) {
+        segments = [
+          ...segments,
+          { id: uid(), type: 'post_show', label: 'Post Show', expectedDurationMinutes: 30, plannedStart: null, plannedEnd: null, actualStart: null, actualEnd: null, holds: [], notes: '', order: segments.length },
+        ];
+      }
+      segments = segments.map((s, i) => ({ ...s, order: i }));
+    }
 
     const perfNumber = run.showIds.length + 1;
     const showId = uid();

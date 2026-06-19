@@ -10,11 +10,13 @@ import type { SegmentType, TemplateSegment, PerformanceType, CopyStrategy, DayTy
 function uid() { return crypto.randomUUID(); }
 
 const TYPE_LABELS: Record<SegmentType, string> = {
+  pre_show: 'Pre Show',
   doors: 'Doors Open', house_open: 'House Open', act: 'Act',
   interval: 'Interval', curtain_call: 'Curtain Call',
   show_end: 'Show End', custom: 'Custom',
   rehearsal: 'Rehearsal', plotting: 'Plotting Session',
   bump_in: 'Bump In', bump_out: 'Bump Out',
+  post_show: 'Post Show',
 };
 
 const FIRST_DAY_OPTIONS: Array<{ value: DayType; label: string; desc: string }> = [

@@ -138,6 +138,13 @@ export default function ActiveSegmentPanel({ show, timeFormat, expectedStarts }:
     ? '#ef4444'
     : isUrgent
     ? '#f97316'
+    : active.type === 'pre_show'  ? '#4ade80'
+    : active.type === 'post_show' ? '#f472b6'
+    : active.type === 'bump_in'   ? '#84cc16'
+    : active.type === 'bump_out'  ? '#f43f5e'
+    : active.type === 'rehearsal' ? '#14b8a6'
+    : active.type === 'plotting'  ? '#6366f1'
+    : active.type === 'doors'     ? '#0ea5e9'
     : '#f59e0b';
 
   // Label inside arc: elapsed for acts, countdown for intervals

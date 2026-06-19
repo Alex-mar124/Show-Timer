@@ -60,6 +60,7 @@ export interface SessionState {
 export type View = 'timer' | 'history' | 'settings';
 
 export type SegmentType =
+  | 'pre_show'
   | 'doors'
   | 'house_open'
   | 'act'
@@ -70,7 +71,8 @@ export type SegmentType =
   | 'rehearsal'
   | 'plotting'
   | 'bump_in'
-  | 'bump_out';
+  | 'bump_out'
+  | 'post_show';
 
 export type DayType = 'performance' | 'rehearsal' | 'plotting' | 'bump_in' | 'bump_out';
 
@@ -336,7 +338,7 @@ export function effectiveClientDeparture(show: Show): string | null {
 // "Non-show time" = technical work outside that window: bump in/out,
 // rehearsal, plotting.
 
-const NON_SHOW_TYPES = new Set<SegmentType>(['bump_in', 'bump_out', 'rehearsal', 'plotting']);
+const NON_SHOW_TYPES = new Set<SegmentType>(['pre_show', 'bump_in', 'bump_out', 'rehearsal', 'plotting', 'post_show']);
 
 /**
  * Total elapsed of the "in show" window. Spans from the earliest started
