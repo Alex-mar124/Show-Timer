@@ -11,6 +11,7 @@ function uid() { return crypto.randomUUID(); }
 
 const TYPE_LABELS: Record<SegmentType, string> = {
   pre_show: 'Pre Show',
+  performance_start: 'Performance Block', changeover: 'Changeover',
   doors: 'Doors Open', house_open: 'House Open', act: 'Act',
   interval: 'Interval', curtain_call: 'Curtain Call',
   show_end: 'Show End', custom: 'Custom',
@@ -152,15 +153,14 @@ export default function RunSetupModal() {
     setScheduledDays([]);
   }
 
-  function addScheduledDay() {
-    const lastDate = scheduledDays.length > 0
-      ? scheduledDays[scheduledDays.length - 1].date
-      : firstDate;
+  function addScheduledDay(sameDay = false) {
+    const lastDay = scheduledDays.length > 0 ? scheduledDays[scheduledDays.length - 1] : null;
+    const lastDate = lastDay?.date ?? firstDate;
     setScheduledDays(prev => [...prev, {
       id: crypto.randomUUID(),
-      date: nextDate(lastDate),
+      date: sameDay ? lastDate : nextDate(lastDate),
       dayType: 'performance',
-      performanceType: null,
+      performanceType: sameDay ? 'evening' : null,
     }]);
   }
 
@@ -416,7 +416,11 @@ export default function RunSetupModal() {
                       <span className="text-[10px] text-slate-600">Day 1</span>
                     </div>
 
-                    {scheduledDays.map((day, i) => (
+                    {scheduledDays.map((day, i) => {
+                      // Same calendar date = same day number (double headers share a day)
+                      const uniqueDates = [...new Set(scheduledDays.slice(0, i + 1).map(d => d.date))];
+                      const dayNum = uniqueDates.indexOf(day.date) + 2;
+                      return (
                       <div key={day.id} className="flex items-center gap-2">
                         <Calendar className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                         <input
@@ -427,14 +431,26 @@ export default function RunSetupModal() {
                         />
                         <select
                           value={day.dayType}
-                          onChange={e => updateScheduledDay(day.id, { dayType: e.target.value as DayType })}
-                          className="flex-1 bg-show-surface border border-show-border rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-amber-500/50 transition-colors"
+                          onChange={e => updateScheduledDay(day.id, { dayType: e.target.value as DayType, performanceType: e.target.value === 'performance' ? day.performanceType : null })}
+                          className="bg-show-surface border border-show-border rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-amber-500/50 transition-colors"
                         >
                           {DAY_TYPE_OPTIONS.map(o => (
                             <option key={o.value} value={o.value}>{o.label}</option>
                           ))}
                         </select>
-                        <span className="text-[10px] text-slate-600 shrink-0">Day {i + 2}</span>
+                        {day.dayType === 'performance' && (
+                          <select
+                            value={day.performanceType ?? ''}
+                            onChange={e => updateScheduledDay(day.id, { performanceType: (e.target.value || null) as PerformanceType | null })}
+                            className="bg-show-surface border border-show-border rounded-lg px-2 py-1.5 text-xs text-purple-300 focus:outline-none focus:border-purple-500/50 transition-colors"
+                          >
+                            <option value="">Any</option>
+                            <option value="matinee">Mat</option>
+                            <option value="evening">Eve</option>
+                            <option value="other">Other</option>
+                          </select>
+                        )}
+                        <span className="text-[10px] text-slate-600 shrink-0 ml-auto">Day {dayNum}</span>
                         <button
                           type="button"
                           onClick={() => removeScheduledDay(day.id)}
@@ -443,16 +459,27 @@ export default function RunSetupModal() {
                           <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
-                    ))}
+                      );
+                    })}
 
-                    <button
-                      type="button"
-                      onClick={addScheduledDay}
-                      className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-amber-400 transition-colors"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Add day
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => addScheduledDay(false)}
+                        className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-amber-400 transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Add day
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addScheduledDay(true)}
+                        className="flex items-center gap-1.5 text-xs text-slate-700 hover:text-purple-400 transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Same day (double header)
+                      </button>
+                    </div>
                   </div>
 
                   {/* Copy Strategy */}

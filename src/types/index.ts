@@ -61,6 +61,8 @@ export type View = 'timer' | 'history' | 'settings';
 
 export type SegmentType =
   | 'pre_show'
+  | 'performance_start'  // named header marking start of a performance block (Matinee / Evening)
+  | 'changeover'         // timed reset/turnaround between two performances on the same day
   | 'doors'
   | 'house_open'
   | 'act'
@@ -246,8 +248,8 @@ export interface Toast {
 }
 
 export function getSegmentStatus(segment: Segment): SegmentStatus {
-  // show_end is a single timestamp — marked complete as soon as actualStart is set
-  if (segment.type === 'show_end') {
+  // Instant-complete types — marked complete as soon as actualStart is set
+  if (segment.type === 'show_end' || segment.type === 'performance_start') {
     return segment.actualStart ? 'complete' : 'pending';
   }
   if (segment.actualStart && segment.actualEnd) return 'complete';
@@ -338,7 +340,7 @@ export function effectiveClientDeparture(show: Show): string | null {
 // "Non-show time" = technical work outside that window: bump in/out,
 // rehearsal, plotting.
 
-const NON_SHOW_TYPES = new Set<SegmentType>(['pre_show', 'bump_in', 'bump_out', 'rehearsal', 'plotting', 'post_show']);
+const NON_SHOW_TYPES = new Set<SegmentType>(['pre_show', 'performance_start', 'changeover', 'bump_in', 'bump_out', 'rehearsal', 'plotting', 'post_show']);
 
 /**
  * Total elapsed of the "in show" window. Spans from the earliest started
@@ -377,7 +379,15 @@ export function getShowTimeWindowMs(show: Show, now: Date): number {
     }
     endMs = latest;
   }
-  return Math.max(0, endMs - startMs);
+  const windowMs = Math.max(0, endMs - startMs);
+
+  // For double-header shows subtract changeover time — it sits inside the
+  // window span but is not "in show" time.
+  const changeoverMs = segs
+    .filter(s => s.type === 'changeover')
+    .reduce((acc, s) => acc + getElapsedMs(s, now), 0);
+
+  return Math.max(0, windowMs - changeoverMs);
 }
 
 /** Total elapsed of non-show (technical) segments: bump in/out, rehearsal, plotting. */

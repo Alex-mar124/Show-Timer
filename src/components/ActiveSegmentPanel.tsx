@@ -96,7 +96,7 @@ export default function ActiveSegmentPanel({ show, timeFormat, expectedStarts }:
 
   const active: Segment = found;
   const activeIdx   = segments.indexOf(active);
-  const next: Segment | undefined = segments.find((s, i) => i > activeIdx && !s.actualStart);
+  const next: Segment | undefined = segments.find((s, i) => i > activeIdx && !s.actualStart && s.type !== 'performance_start');
 
   const elapsedMs   = getElapsedMs(active, now);
   const isOnHold    = active.holds.some(h => !h.endTime);
@@ -138,8 +138,9 @@ export default function ActiveSegmentPanel({ show, timeFormat, expectedStarts }:
     ? '#ef4444'
     : isUrgent
     ? '#f97316'
-    : active.type === 'pre_show'  ? '#4ade80'
-    : active.type === 'post_show' ? '#f472b6'
+    : active.type === 'pre_show'   ? '#4ade80'
+    : active.type === 'changeover' ? '#38bdf8'
+    : active.type === 'post_show'  ? '#f472b6'
     : active.type === 'bump_in'   ? '#84cc16'
     : active.type === 'bump_out'  ? '#f43f5e'
     : active.type === 'rehearsal' ? '#14b8a6'

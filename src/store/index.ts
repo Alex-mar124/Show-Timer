@@ -186,7 +186,7 @@ interface ShowStore {
     firstDayType?: DayType;
     scheduledDays?: Array<{ date: string; dayType: DayType; performanceType?: PerformanceType | null }>;
   }) => void;
-  startNextPerformance: (runId: string, performanceType?: PerformanceType, dayType?: DayType) => void;
+  startNextPerformance: (runId: string, performanceType?: PerformanceType, dayType?: DayType, sameDay?: boolean) => void;
   completeRun: (runId: string) => void;
   deleteRun: (runId: string) => void;
   updateRunNotes: (runId: string, notes: string) => void;
@@ -203,7 +203,7 @@ interface ShowStore {
   updateSegmentExpected: (showId: string, segmentId: string, minutes: number | null) => void;
   updateSegmentNotes: (showId: string, segmentId: string, notes: string) => void;
   updateSegmentSchedule: (showId: string, segmentId: string, field: 'plannedStart' | 'plannedEnd', value: string | null) => void;
-  addSegment: (showId: string, type: SegmentType, afterOrder?: number) => void;
+  addSegment: (showId: string, type: SegmentType, afterOrder?: number, label?: string) => void;
   removeSegment: (showId: string, segmentId: string) => void;
   reorderSegments: (showId: string, orderedIds: string[]) => void;
   advanceSegment: (showId: string, currentSegmentId: string) => void;
@@ -688,9 +688,10 @@ export const useShowStore = create<ShowStore>((set, get) => ({
     get().saveToStore();
   },
 
-  addSegment: (showId, type, afterOrder) => {
+  addSegment: (showId, type, afterOrder, label) => {
     const labelMap: Record<SegmentType, string> = {
       pre_show: 'Pre Show',
+      performance_start: 'Performance', changeover: 'Changeover',
       doors: 'Doors Open', house_open: 'House Open', act: 'Act',
       interval: 'Interval', curtain_call: 'Curtain Call', show_end: 'Show End', custom: 'Custom',
       rehearsal: 'Rehearsal', plotting: 'Plotting Session',
@@ -698,14 +699,15 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       post_show: 'Post Show',
     };
     const defaultDuration: Partial<Record<SegmentType, number>> = {
-      pre_show: 60, act: 55, interval: 20, rehearsal: 240, plotting: 300, doors: 30, post_show: 30,
+      pre_show: 60, act: 55, interval: 20, rehearsal: 240, plotting: 300,
+      doors: 30, post_show: 30, changeover: 60,
     };
     set(s => {
       const show = s.shows.find(sh => sh.id === showId);
       if (!show) return s;
       const order = afterOrder !== undefined ? afterOrder + 0.5 : show.segments.length;
       const seg: Segment = {
-        id: uid(), type, label: labelMap[type],
+        id: uid(), type, label: label ?? labelMap[type],
         expectedDurationMinutes: defaultDuration[type] ?? null,
         plannedStart: null, plannedEnd: null,
         actualStart: null, actualEnd: null, holds: [], notes: '', order,
@@ -739,17 +741,22 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       if (!show) return s;
       const sorted = [...show.segments].sort((a, b) => a.order - b.order);
       const idx = sorted.findIndex(seg => seg.id === currentSegmentId);
-      const nextSeg = sorted.find((seg, i) => i > idx && !seg.actualStart);
+      // Skip performance_start markers — they get stamped instantly, then the real next segment starts
+      const nextReal = sorted.find((seg, i) => i > idx && !seg.actualStart && seg.type !== 'performance_start');
+      const nextRealIdx = nextReal ? sorted.indexOf(nextReal) : -1;
+      const markersToStamp = sorted.filter(
+        (seg, i) => i > idx && (nextRealIdx === -1 || i < nextRealIdx) && seg.type === 'performance_start' && !seg.actualStart
+      );
       return {
         shows: s.shows.map(sh =>
           sh.id !== showId ? sh : {
             ...sh,
             segments: sh.segments.map(seg => {
               if (seg.id === currentSegmentId) return { ...seg, actualEnd: t };
-              if (nextSeg && seg.id === nextSeg.id) return {
+              if (markersToStamp.some(m => m.id === seg.id)) return { ...seg, actualStart: t, actualEnd: t, holds: [] };
+              if (nextReal && seg.id === nextReal.id) return {
                 ...seg,
                 actualStart: t,
-                // show_end is a single-timestamp event — instantly complete
                 actualEnd: seg.type === 'show_end' ? t : null,
                 holds: [],
               };
@@ -852,30 +859,84 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       dayType: firstDayType === 'performance' ? undefined : firstDayType,
     };
 
-    // Build additional pre-scheduled days
+    // Build additional pre-scheduled days.
+    // Consecutive performance entries on the same date are merged into one Show
+    // with performance_start / changeover dividers (double-header architecture).
     let perfCount = firstDayType === 'performance' ? 1 : 0;
-    const additionalShows: Show[] = (data.scheduledDays ?? []).map(day => {
-      if (day.dayType === 'performance') perfCount++;
 
-      let extraSegs: Segment[];
-      if (day.dayType === 'performance') {
-        extraSegs = data.templateSegments.map(t => ({
+    type RawDay = { date: string; dayType: DayType; performanceType?: PerformanceType | null };
+    const rawDays: RawDay[] = data.scheduledDays ?? [];
+
+    // Group consecutive same-date performance entries
+    const dayGroups: RawDay[][] = [];
+    for (const day of rawDays) {
+      const last = dayGroups[dayGroups.length - 1];
+      if (last && last[0].date === day.date && day.dayType === 'performance' && last[0].dayType === 'performance') {
+        last.push(day);
+      } else {
+        dayGroups.push([day]);
+      }
+    }
+
+    function makeSeg<T extends SegmentType>(type: T, label: string, exp: number | null, order: number): Segment {
+      return { id: uid(), type, label, expectedDurationMinutes: exp, plannedStart: null, plannedEnd: null, actualStart: null, actualEnd: null, holds: [], notes: '', order };
+    }
+
+    function perfLabel(pt: PerformanceType | null | undefined, fallback: string): string {
+      return pt === 'matinee' ? 'Matinee' : pt === 'evening' ? 'Evening' : fallback;
+    }
+
+    const additionalShows: Show[] = dayGroups.map(group => {
+      const firstDay = group[0];
+
+      if (firstDay.dayType === 'performance') perfCount++;
+
+      let segs: Segment[];
+
+      if (firstDay.dayType === 'performance' && group.length > 1) {
+        // Double-header: merge into one Show with performance_start + changeover dividers
+        const innerTemplate = data.templateSegments.filter(t => t.type !== 'pre_show' && t.type !== 'post_show');
+        const makeBlock = (offset: number): Segment[] =>
+          innerTemplate.map((t, i) => ({
+            id: uid(), type: t.type, label: t.label,
+            expectedDurationMinutes: t.expectedDurationMinutes,
+            plannedStart: null, plannedEnd: null,
+            actualStart: null, actualEnd: null, holds: [], notes: '',
+            order: offset + i,
+          }));
+
+        const flat: Segment[] = [
+          makeSeg('pre_show', 'Pre Show', 60, 0),
+          makeSeg('performance_start', perfLabel(group[0].performanceType, 'Performance 1'), null, 1),
+          ...makeBlock(2),
+          makeSeg('changeover', 'Changeover', 60, 2 + innerTemplate.length),
+          makeSeg('performance_start', perfLabel(group[1].performanceType, 'Performance 2'), null, 3 + innerTemplate.length),
+          ...makeBlock(4 + innerTemplate.length),
+          makeSeg('post_show', 'Post Show', 30, 4 + innerTemplate.length * 2),
+        ];
+        segs = flat.map((s, i) => ({ ...s, order: i }));
+
+      } else if (firstDay.dayType === 'performance') {
+        // Single performance day
+        let extraSegs: Segment[] = data.templateSegments.map(t => ({
           id: uid(), type: t.type, label: t.label,
           expectedDurationMinutes: t.expectedDurationMinutes,
           plannedStart: null, plannedEnd: null,
           actualStart: null, actualEnd: null, holds: [], notes: '', order: t.order,
         }));
         if (!extraSegs.some(s => s.type === 'pre_show')) {
-          extraSegs = [{ id: uid(), type: 'pre_show' as const, label: 'Pre Show', expectedDurationMinutes: 60, plannedStart: null, plannedEnd: null, actualStart: null, actualEnd: null, holds: [], notes: '', order: -1 }, ...extraSegs];
+          extraSegs = [makeSeg('pre_show', 'Pre Show', 60, -1), ...extraSegs];
         }
         if (!extraSegs.some(s => s.type === 'post_show')) {
-          extraSegs = [...extraSegs, { id: uid(), type: 'post_show' as const, label: 'Post Show', expectedDurationMinutes: 30, plannedStart: null, plannedEnd: null, actualStart: null, actualEnd: null, holds: [], notes: '', order: extraSegs.length }];
+          extraSegs = [...extraSegs, makeSeg('post_show', 'Post Show', 30, extraSegs.length)];
         }
-        extraSegs = extraSegs.map((s, i) => ({ ...s, order: i }));
+        segs = extraSegs.map((s, i) => ({ ...s, order: i }));
+
       } else {
-        const def = NON_PERF_SINGLE[day.dayType];
+        // Non-performance day
+        const def = NON_PERF_SINGLE[firstDay.dayType];
         if (!def) return null as unknown as Show;
-        extraSegs = [{ id: uid(), type: def.type, label: def.label, expectedDurationMinutes: def.exp, plannedStart: null, plannedEnd: null, actualStart: null, actualEnd: null, holds: [], notes: '', order: 0 }];
+        segs = [makeSeg(def.type, def.label, def.exp, 0)];
       }
 
       const EXTRA_TITLES: Record<DayType, string> = {
@@ -885,20 +946,20 @@ export const useShowStore = create<ShowStore>((set, get) => ({
 
       return {
         id: uid(),
-        title: EXTRA_TITLES[day.dayType],
+        title: EXTRA_TITLES[firstDay.dayType],
         production: data.production,
-        date: day.date,
-        plannedStartTime: toISO(day.date, data.defaultShowStartTime),
-        doorsOpenTime: toISO(day.date, data.defaultDoorsTime),
-        segments: extraSegs,
+        date: firstDay.date,
+        plannedStartTime: toISO(firstDay.date, data.defaultShowStartTime),
+        doorsOpenTime: toISO(firstDay.date, data.defaultDoorsTime),
+        segments: segs,
         notes: '', techNotes: '',
         ...defaultPeople(),
         createdAt: nowISO(),
         completedAt: null,
         runId,
-        performanceNumber: day.dayType === 'performance' ? perfCount : undefined,
-        performanceType: day.dayType === 'performance' ? (day.performanceType ?? data.performanceType ?? undefined) : undefined,
-        dayType: day.dayType === 'performance' ? undefined : day.dayType,
+        performanceNumber: firstDay.dayType === 'performance' ? perfCount : undefined,
+        performanceType: firstDay.dayType === 'performance' ? (firstDay.performanceType ?? data.performanceType ?? undefined) : undefined,
+        dayType: firstDay.dayType === 'performance' ? undefined : firstDay.dayType,
       } satisfies Show;
     }).filter(Boolean);
 
@@ -914,7 +975,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
     get().saveToStore();
   },
 
-  startNextPerformance: (runId, performanceType, dayType = 'performance') => {
+  startNextPerformance: (runId, performanceType, dayType = 'performance', sameDay = false) => {
     const { runs, shows } = get();
     const run = runs.find(r => r.id === runId);
     if (!run) return;
@@ -923,9 +984,57 @@ export const useShowStore = create<ShowStore>((set, get) => ({
     const lastShow = shows.find(s => s.id === lastShowId);
     if (!lastShow) return;
 
-    // Advance date by 1 day — use local year/month/date to avoid UTC timezone offset bugs
+    // ── Same-day double header: merge evening block into the existing show ──
+    if (sameDay && dayType === 'performance') {
+      const blockLabel = performanceType === 'matinee' ? 'Matinee'
+        : performanceType === 'evening' ? 'Evening' : 'Performance';
+
+      const innerTemplate = (
+        run.copyStrategy === 'last_show'
+          ? [...lastShow.segments].sort((a, b) => a.order - b.order)
+          : [...run.templateSegments].sort((a, b) => a.order - b.order)
+      ).filter(t =>
+        t.type !== 'pre_show' && t.type !== 'post_show' &&
+        t.type !== 'performance_start' && t.type !== 'changeover'
+      );
+
+      set(s => {
+        const show = s.shows.find(sh => sh.id === lastShowId);
+        if (!show) return s;
+
+        const sortedSegs = [...show.segments].sort((a, b) => a.order - b.order);
+        const postShowIdx = sortedSegs.findIndex(sg => sg.type === 'post_show');
+        const insertIdx = postShowIdx !== -1 ? postShowIdx : sortedSegs.length;
+
+        const newSegs: Segment[] = [
+          { id: uid(), type: 'changeover', label: 'Changeover', expectedDurationMinutes: 60, plannedStart: null, plannedEnd: null, actualStart: null, actualEnd: null, holds: [], notes: '', order: 0 },
+          { id: uid(), type: 'performance_start', label: blockLabel, expectedDurationMinutes: null, plannedStart: null, plannedEnd: null, actualStart: null, actualEnd: null, holds: [], notes: '', order: 0 },
+          ...innerTemplate.map(t => ({
+            id: uid(), type: t.type, label: t.label,
+            expectedDurationMinutes: t.expectedDurationMinutes,
+            plannedStart: null, plannedEnd: null, actualStart: null, actualEnd: null,
+            holds: [], notes: '', order: 0,
+          } as Segment)),
+        ];
+
+        const combined = [
+          ...sortedSegs.slice(0, insertIdx),
+          ...newSegs,
+          ...sortedSegs.slice(insertIdx),
+        ].map((seg, i) => ({ ...seg, order: i }));
+
+        return {
+          ...s,
+          shows: s.shows.map(sh => sh.id === lastShowId ? { ...sh, segments: combined } : sh),
+        };
+      });
+      get().saveToStore();
+      return;
+    }
+
+    // Advance date by 1 day for a new performance night
     const [ly, lm, ld] = lastShow.date.split('-').map(Number);
-    const localNext = new Date(ly, lm - 1, ld + 1);
+    const localNext = new Date(ly, lm - 1, sameDay ? ld : ld + 1);
     const nextDate = `${localNext.getFullYear()}-${String(localNext.getMonth() + 1).padStart(2, '0')}-${String(localNext.getDate()).padStart(2, '0')}`;
 
     function toISO(dateStr: string, timeStr: string): string | null {
@@ -983,7 +1092,11 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       segments = segments.map((s, i) => ({ ...s, order: i }));
     }
 
-    const perfNumber = run.showIds.length + 1;
+    const perfNumber =
+      run.showIds
+        .map(id => shows.find(s => s.id === id))
+        .filter(s => !s?.dayType || s.dayType === 'performance')
+        .length + 1;
     const showId = uid();
 
     const DAY_LABELS: Record<DayType, string> = {

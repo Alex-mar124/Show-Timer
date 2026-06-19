@@ -143,6 +143,8 @@ export default function HistoryView() {
                 : 0;
               const isExpanded = expandedRuns.has(run.id);
               const isComplete = !!run.completedAt;
+              const perfShows = runShows.filter(s => !s.dayType || s.dayType === 'performance');
+              const uniquePerfDates = new Set(perfShows.map(s => s.date)).size;
               const firstDate = runShows[0]?.date;
               const lastDate = runShows[runShows.length - 1]?.date;
               const dateRange = firstDate
@@ -150,6 +152,7 @@ export default function HistoryView() {
                   : `${formatDateShort(firstDate)} – ${formatDateShort(lastDate ?? firstDate)}`
                 : 'No performances yet';
               const hasCurrentShow = runShows.some(s => s.id === currentShowId);
+              const nextPerfNumber = perfShows.length + 1;
 
               return (
                 <motion.div
@@ -201,7 +204,9 @@ export default function HistoryView() {
                       <div className="flex items-center gap-3 mt-0.5">
                         <p className="text-xs text-slate-600">{dateRange}</p>
                         <span className="text-xs text-slate-700">
-                          {runShows.length} night{runShows.length !== 1 ? 's' : ''}
+                          {uniquePerfDates > 0
+                            ? `${uniquePerfDates} night${uniquePerfDates !== 1 ? 's' : ''}${runShows.length > uniquePerfDates ? ` · ${runShows.length} shows` : ''}`
+                            : `${runShows.length} day${runShows.length !== 1 ? 's' : ''}`}
                         </span>
                         {avgMs > 0 && (
                           <span className="flex items-center gap-1 text-xs text-slate-600">
@@ -233,6 +238,7 @@ export default function HistoryView() {
                             runShows.map((show, si) => {
                               const totalMs = getTotalRunningMs(show, new Date());
                               const isCurrent = show.id === currentShowId;
+                              const isDoubleHeader = show.segments.some(s => s.type === 'changeover');
                               return (
                                 <div
                                   key={show.id}
@@ -254,14 +260,21 @@ export default function HistoryView() {
                                          show.dayType === 'plotting'  ? 'Plot' :
                                          show.dayType === 'bump_in'   ? 'B.In' : 'B.Out'}
                                       </span>
+                                    ) : isDoubleHeader ? (
+                                      <span className="text-[10px] text-amber-300/80 bg-amber-500/10 px-1 py-0.5 rounded font-semibold">2×</span>
                                     ) : show.performanceType ? (
-                                      <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1 py-0.5 rounded">
+                                      <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1 py-0.5 rounded font-semibold">
                                         {PERF_TYPE_LABEL[show.performanceType]}
                                       </span>
                                     ) : null}
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-medium text-slate-300">{formatDateShort(show.date)}</p>
+                                    <p className="text-xs font-medium text-slate-300">
+                                      {formatDateShort(show.date)}
+                                      {isDoubleHeader && (
+                                        <span className="ml-1.5 text-[10px] text-slate-600">double header</span>
+                                      )}
+                                    </p>
                                   </div>
                                   <span className="text-xs text-slate-600 font-mono shrink-0">
                                     {totalMs > 0 ? formatDuration(totalMs) : '—'}
@@ -292,12 +305,12 @@ export default function HistoryView() {
                                 <button
                                   onClick={() => {
                                     startNextPerformance(run.id);
-                                    addToast({ title: `Night ${runShows.length + 1} started`, message: run.name, type: 'success' });
+                                    addToast({ title: `Night ${nextPerfNumber} started`, message: run.name, type: 'success' });
                                   }}
                                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-semibold transition-all"
                                 >
                                   <Plus className="w-3 h-3" />
-                                  Night {runShows.length + 1}
+                                  Night {nextPerfNumber}
                                 </button>
                               )}
                               {!isComplete && (

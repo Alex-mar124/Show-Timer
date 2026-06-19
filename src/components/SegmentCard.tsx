@@ -22,6 +22,8 @@ interface Props {
   segment: Segment;
   timeFormat: TimeFormat;
   expectedStartAt?: Date | null;
+  /** For changeover segments: auto-derived duration from surrounding expected times. */
+  derivedDurationMs?: number | null;
 }
 
 function ExpectedMinInput({
@@ -76,7 +78,7 @@ function ExpectedMinInput({
   );
 }
 
-export default function SegmentCard({ showId, dateAnchor, segment, timeFormat, expectedStartAt }: Props) {
+export default function SegmentCard({ showId, dateAnchor, segment, timeFormat, expectedStartAt, derivedDurationMs }: Props) {
   const {
     startSegment, stopSegment, holdSegment, resumeSegment, removeSegment,
     settings, addToast, updateSegmentLabel, updateSegmentExpected, updateSegmentNotes,
@@ -103,13 +105,14 @@ export default function SegmentCard({ showId, dateAnchor, segment, timeFormat, e
   // Per-type hex colour — used for left bar, progress fill, and drag handle
   const segColor = isOnHold || segment.type === 'interval'
     ? '#a855f7'
-    : segment.type === 'pre_show'  ? '#4ade80'
-    : segment.type === 'bump_in'   ? '#84cc16'
-    : segment.type === 'bump_out'  ? '#f43f5e'
-    : segment.type === 'rehearsal' ? '#14b8a6'
-    : segment.type === 'plotting'  ? '#6366f1'
-    : segment.type === 'doors'     ? '#0ea5e9'
-    : segment.type === 'post_show' ? '#f472b6'
+    : segment.type === 'pre_show'          ? '#4ade80'
+    : segment.type === 'changeover'        ? '#38bdf8'
+    : segment.type === 'bump_in'           ? '#84cc16'
+    : segment.type === 'bump_out'          ? '#f43f5e'
+    : segment.type === 'rehearsal'         ? '#14b8a6'
+    : segment.type === 'plotting'          ? '#6366f1'
+    : segment.type === 'doors'             ? '#0ea5e9'
+    : segment.type === 'post_show'         ? '#f472b6'
     : '#f59e0b';
 
   // Static left bar for non-active segments; active uses absolute progress bar instead
@@ -122,7 +125,8 @@ export default function SegmentCard({ showId, dateAnchor, segment, timeFormat, e
     : segment.type === 'bump_out'  ? 'border-l-[3px] border-l-rose-500/40'
     : segment.type === 'rehearsal' ? 'border-l-[3px] border-l-teal-500/40'
     : segment.type === 'plotting'  ? 'border-l-[3px] border-l-indigo-500/40'
-    : segment.type === 'post_show' ? 'border-l-[3px] border-l-pink-400/40'
+    : segment.type === 'changeover'  ? 'border-l-[3px] border-l-sky-400/40'
+    : segment.type === 'post_show'   ? 'border-l-[3px] border-l-pink-400/40'
     : 'border-l-[3px] border-l-white/5';
 
   const SCHEDULE_TYPES: Set<SegmentType> = new Set(['pre_show', 'bump_in', 'bump_out', 'rehearsal', 'plotting', 'doors', 'post_show']);
@@ -151,6 +155,49 @@ export default function SegmentCard({ showId, dateAnchor, segment, timeFormat, e
         timeFormat
       );
     }
+  }
+
+  // ── Performance block banner (non-timed section header) ─────────────────────
+  if (segment.type === 'performance_start') {
+    return (
+      <div
+        ref={setNodeRef}
+        style={dragStyle}
+        className="flex items-center gap-3 px-4 py-2.5 bg-amber-500/8 border-b border-show-border select-none"
+      >
+        <button
+          className="touch-none text-slate-700 hover:text-amber-400 transition-colors cursor-grab active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="w-3.5 h-3.5" />
+        </button>
+        <span className="text-[9px] font-bold tracking-[0.22em] text-amber-500/60 uppercase">Performance</span>
+        {editingLabel ? (
+          <input
+            autoFocus
+            value={labelVal}
+            onChange={e => setLabelVal(e.target.value)}
+            onBlur={() => { updateSegmentLabel(showId, segment.id, labelVal || segment.label); setEditingLabel(false); }}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') { updateSegmentLabel(showId, segment.id, labelVal || segment.label); setEditingLabel(false); } }}
+            className="flex-1 bg-transparent border-b border-amber-500/40 text-sm font-bold text-amber-300 focus:outline-none"
+          />
+        ) : (
+          <button
+            onClick={() => { setLabelVal(segment.label); setEditingLabel(true); }}
+            className="flex-1 text-left text-sm font-bold text-amber-300 hover:text-amber-200 transition-colors"
+          >
+            {segment.label}
+          </button>
+        )}
+        <button
+          onClick={() => removeSegment(showId, segment.id)}
+          className="w-6 h-6 rounded flex items-center justify-center text-slate-700 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </div>
+    );
   }
 
   function handleStop() {
@@ -420,6 +467,13 @@ export default function SegmentCard({ showId, dateAnchor, segment, timeFormat, e
                   value={segment.expectedDurationMinutes}
                   onChange={v => updateSegmentExpected(showId, segment.id, v)}
                 />
+              )}
+
+              {segment.type === 'changeover' && derivedDurationMs != null && derivedDurationMs > 0 && (
+                <span className="text-[10px] font-semibold text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Clock className="w-2.5 h-2.5" />
+                  Auto {formatDuration(derivedDurationMs)}
+                </span>
               )}
 
               {overUnderMs !== null && Math.abs(overUnderMs) > 5000 && (

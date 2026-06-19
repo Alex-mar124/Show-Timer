@@ -22,7 +22,7 @@ import SegmentCard from './SegmentCard';
 import ActiveSegmentPanel from './ActiveSegmentPanel';
 import type { PerformanceType, DayType, SegmentType } from '../types';
 import { getTotalRunningMs, getShowTimeMs, getProductionSegmentMs, SHOW_CORE_TYPES, PRODUCTION_TYPES, getSegmentStatus } from '../types';
-import { formatDuration, formatDurationShort, formatTime } from '../utils/time';
+import { formatDuration, formatDurationShort, formatTime, formatDateShort } from '../utils/time';
 import { schedulePreShowNotifications } from '../utils/notifications';
 import { computeExpectedStarts } from '../utils/schedule';
 
@@ -56,8 +56,8 @@ export default function TimerView() {
 
   // All hooks must be called before any conditional return
   const expectedStarts = useMemo(
-    () => (show ? computeExpectedStarts(show) : new Map<string, Date | null>()),
-    [show]
+    () => (show ? computeExpectedStarts(show, now) : new Map<string, Date | null>()),
+    [show, now]
   );
 
   const clockGlowColor = useMemo(() => {
@@ -136,12 +136,16 @@ export default function TimerView() {
   const showEndSeg = segments.find(s => s.type === 'show_end') ?? segments[segments.length - 1];
   const expectedEnd = showEndSeg ? (expectedStarts.get(showEndSeg.id) ?? null) : null;
   const totalExpectedMin = segments
-    .filter(s => s.expectedDurationMinutes && s.type !== 'pre_show' && s.type !== 'post_show')
+    .filter(s => s.expectedDurationMinutes && s.type !== 'pre_show' && s.type !== 'post_show' && s.type !== 'performance_start' && s.type !== 'changeover')
     .reduce((acc, s) => acc + (s.expectedDurationMinutes ?? 0), 0);
 
-  const addTypes: Array<{ type: SegmentType; label: string; group?: string }> = [
-    { type: 'pre_show',      label: 'Pre Show',         group: 'company' },
-    { type: 'post_show',     label: 'Post Show',        group: 'company' },
+  const addTypes: Array<{ type: SegmentType; label: string; group?: string; customLabel?: string }> = [
+    { type: 'pre_show',          label: 'Pre Show',         group: 'company' },
+    { type: 'post_show',         label: 'Post Show',        group: 'company' },
+    { type: 'performance_start', label: 'Matinee block',    group: 'double_header', customLabel: 'Matinee' },
+    { type: 'performance_start', label: 'Evening block',    group: 'double_header', customLabel: 'Evening' },
+    { type: 'changeover',        label: 'Changeover',       group: 'double_header' },
+    { type: 'doors',             label: 'Doors Open',       group: 'show' },
     { type: 'act',           label: 'Act',              group: 'show' },
     { type: 'interval',      label: 'Interval',         group: 'show' },
     { type: 'curtain_call',  label: 'Curtain Call',     group: 'show' },
@@ -217,8 +221,15 @@ export default function TimerView() {
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
                   </button>
-                  <span className="px-1.5 text-[10px] text-slate-600 font-mono tabular select-none">
-                    {idx + 1}/{currentRun.showIds.length}
+                  <span className="px-2 text-[10px] text-slate-500 select-none flex items-center gap-1.5">
+                    <span className="font-semibold text-slate-400">Day {idx + 1}</span>
+                    <span className="text-slate-700">·</span>
+                    <span className="font-mono">{formatDateShort(show.date)}</span>
+                    {show.performanceType && (
+                      <span className="text-purple-400/80 font-semibold">
+                        {show.performanceType === 'matinee' ? 'Mat' : show.performanceType === 'evening' ? 'Eve' : 'Oth'}
+                      </span>
+                    )}
                   </span>
                   <button
                     onClick={() => nextId && setCurrentShow(nextId)}
@@ -346,6 +357,13 @@ export default function TimerView() {
                           segment={seg}
                           timeFormat={settings.timeFormat}
                           expectedStartAt={expectedStarts.get(seg.id) ?? null}
+                          derivedDurationMs={seg.type === 'changeover' ? (() => {
+                            const segIdx = segments.indexOf(seg);
+                            const nextReal = segments.slice(segIdx + 1).find(s => s.type !== 'performance_start');
+                            const cStart = expectedStarts.get(seg.id);
+                            const nStart = nextReal ? expectedStarts.get(nextReal.id) : null;
+                            return cStart && nStart ? nStart.getTime() - cStart.getTime() : null;
+                          })() : null}
                         />
                       </div>
                     </div>
@@ -394,10 +412,21 @@ export default function TimerView() {
                   className="absolute top-full left-0 mt-1.5 z-20 bg-show-card border border-show-border rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden min-w-[180px]"
                 >
                   <p className="px-3 pt-2.5 pb-1 text-[10px] text-slate-600 uppercase tracking-widest font-semibold">Company</p>
-                  {addTypes.filter(t => t.group === 'company').map(({ type, label }) => (
+                  {addTypes.filter(t => t.group === 'company').map(({ type, label, customLabel }) => (
                     <button
-                      key={type}
-                      onClick={() => { addSegment(show.id, type); setAddMenuOpen(false); }}
+                      key={label}
+                      onClick={() => { addSegment(show.id, type, undefined, customLabel); setAddMenuOpen(false); }}
+                      className="flex w-full items-center px-4 py-2.5 text-sm text-slate-300 hover:bg-show-hover hover:text-slate-100 transition-colors"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <div className="border-t border-show-border/50 my-1" />
+                  <p className="px-3 pt-1.5 pb-1 text-[10px] text-slate-600 uppercase tracking-widest font-semibold">Double Header</p>
+                  {addTypes.filter(t => t.group === 'double_header').map(({ type, label, customLabel }) => (
+                    <button
+                      key={label}
+                      onClick={() => { addSegment(show.id, type, undefined, customLabel); setAddMenuOpen(false); }}
                       className="flex w-full items-center px-4 py-2.5 text-sm text-slate-300 hover:bg-show-hover hover:text-slate-100 transition-colors"
                     >
                       {label}
@@ -405,10 +434,10 @@ export default function TimerView() {
                   ))}
                   <div className="border-t border-show-border/50 my-1" />
                   <p className="px-3 pt-1.5 pb-1 text-[10px] text-slate-600 uppercase tracking-widest font-semibold">Show</p>
-                  {addTypes.filter(t => t.group === 'show').map(({ type, label }) => (
+                  {addTypes.filter(t => t.group === 'show').map(({ type, label, customLabel }) => (
                     <button
-                      key={type}
-                      onClick={() => { addSegment(show.id, type); setAddMenuOpen(false); }}
+                      key={label}
+                      onClick={() => { addSegment(show.id, type, undefined, customLabel); setAddMenuOpen(false); }}
                       className="flex w-full items-center px-4 py-2.5 text-sm text-slate-300 hover:bg-show-hover hover:text-slate-100 transition-colors"
                     >
                       {label}
@@ -425,10 +454,10 @@ export default function TimerView() {
                   )}
                   <div className="border-t border-show-border/50 my-1" />
                   <p className="px-3 pt-1.5 pb-1 text-[10px] text-slate-600 uppercase tracking-widest font-semibold">Production</p>
-                  {addTypes.filter(t => t.group === 'other').map(({ type, label }) => (
+                  {addTypes.filter(t => t.group === 'other').map(({ type, label, customLabel }) => (
                     <button
-                      key={type}
-                      onClick={() => { addSegment(show.id, type); setAddMenuOpen(false); }}
+                      key={label}
+                      onClick={() => { addSegment(show.id, type, undefined, customLabel); setAddMenuOpen(false); }}
                       className="flex w-full items-center px-4 py-2.5 text-sm text-slate-300 hover:bg-show-hover hover:text-slate-100 transition-colors"
                     >
                       {label}
@@ -493,6 +522,7 @@ export default function TimerView() {
                   <div className="absolute bottom-full right-0 mb-2 bg-show-card border border-show-border rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden z-20 min-w-[180px]">
                     <p className="px-3 pt-2.5 pb-1 text-[10px] text-slate-600 uppercase tracking-widest font-semibold">Next day type</p>
 
+                    <p className="px-3 pt-2.5 pb-1 text-[10px] text-slate-600 uppercase tracking-widest font-semibold">Next Day</p>
                     {/* Performance options */}
                     {currentRun.performanceType === null ? (
                       (['matinee', 'evening', 'other'] as PerformanceType[]).map(t => (
@@ -515,6 +545,19 @@ export default function TimerView() {
                         Performance
                       </button>
                     )}
+
+                    <div className="border-t border-show-border/50 my-1" />
+                    <p className="px-3 pt-1.5 pb-1 text-[10px] text-slate-600 uppercase tracking-widest font-semibold">Same Day</p>
+                    {(['matinee', 'evening'] as PerformanceType[]).map(t => (
+                      <button key={t} onClick={() => {
+                        startNextPerformance(currentRun.id, t, 'performance', true);
+                        setNextTypePickerOpen(false);
+                        addToast({ title: `${PERF_TYPE_LABEL[t]} block added`, message: 'Same-day double header', type: 'success' });
+                      }} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:bg-show-hover hover:text-slate-100 transition-colors">
+                        <span className="w-2 h-2 rounded-full bg-purple-500/60 shrink-0" />
+                        {PERF_TYPE_LABEL[t]}
+                      </button>
+                    ))}
 
                     <div className="border-t border-show-border/50 my-1" />
 
