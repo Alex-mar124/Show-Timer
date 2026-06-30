@@ -1,9 +1,12 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
-import type { Show, Run, TimeFormat } from '../types';
+import type { Show, Run, TimeFormat, SegmentType } from '../types';
 import { getElapsedMs, getShowTimeWindowMs, getNonShowTimeMs, staffBreakMinutes, staffWorkedMs, effectiveClientArrival, effectiveClientDeparture } from '../types';
 import { formatTime, formatDuration, formatDateLong, formatDateShort } from './time';
+import { drawShowReport, type ShowReport } from './showReportPdf';
+import { markInk, wordmarkInk, markWhite } from './reportLogos';
+import { registerReportFonts } from './reportFonts';
 
 // Colour palette (RGB)
 const C = {
@@ -134,125 +137,83 @@ function span(a: string | null, b: string | null): number | null {
   return d >= 0 ? d : null;
 }
 
-// ── Single-show report ────────────────────────────────────────────────────────
+// ── Single-show report (redesigned — Karralyka layout) ─────────────────────────
 
-export function generatePDF(show: Show, timeFormat: TimeFormat): void {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+const DAY_LABEL: Record<string, string> = {
+  rehearsal: 'Rehearsal', plotting: 'Plotting', bump_in: 'Bump In', bump_out: 'Bump Out', performance: 'Performance',
+};
+
+/** The hero pill / running-header label for a show. */
+function reportNight(show: Show): string {
+  if (show.dayType && show.dayType !== 'performance') return DAY_LABEL[show.dayType] ?? 'Day';
+  if (show.performanceNumber) return `Night ${show.performanceNumber}`;
+  if (show.performanceType) return show.performanceType[0].toUpperCase() + show.performanceType.slice(1);
+  if (show.production && show.title && show.title !== show.production) return show.title;
+  return 'Performance';
+}
+
+/** Map a segment type onto the timing-row accent the design uses. */
+function timingKind(type: SegmentType): 'act' | 'interval' | 'normal' {
+  if (type === 'act' || type === 'curtain_call') return 'act';
+  if (type === 'interval' || type === 'doors' || type === 'house_open') return 'interval';
+  return 'normal';
+}
+
+/** Build the renderer's data object from live show state. Pure mapping — no I/O. */
+export function buildShowReport(show: Show, timeFormat: TimeFormat): ShowReport {
   const now = new Date();
-
-  let y = header(
-    doc, 'SHOW REPORT',
-    show.production || show.title,
-    show.title && show.title !== show.production ? show.title : null,
-    formatDateLong(show.date),
-  );
-
-  // ─── Client access ─────────────────────────────────────────────────────────
-  y = sectionLabel(doc, 'Client Access', y) + 1;
-  const half = (W - MARGIN * 2 - 4) / 2;
   const cArr = effectiveClientArrival(show);
   const cDep = effectiveClientDeparture(show);
-  statCard(doc, MARGIN, half, y, 'Arrival', formatTime(cArr, timeFormat), C.green);
-  statCard(doc, MARGIN + half + 4, half, y, 'Departure', formatTime(cDep, timeFormat), C.rose);
-  y += 20;
   const onSite = span(cArr, cDep);
-  if (onSite !== null) {
-    doc.setFontSize(8.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.slate);
-    doc.text(`Client on site: ${formatDuration(onSite)}`, MARGIN, y);
-    y += 6;
-  }
-
-  // ─── Staff ─────────────────────────────────────────────────────────────────
-  if (show.staff.length > 0) {
-    y = ensureSpace(doc, y, 24);
-    y = sectionLabel(doc, 'Staff', y);
-    autoTable(doc, {
-      startY: y,
-      margin: { left: MARGIN, right: MARGIN },
-      head: [['Name', 'Role', 'In', 'Out', 'Breaks', 'Net Hours']],
-      body: show.staff.map(m => {
-        const bm = staffBreakMinutes(m);
-        const net = staffWorkedMs(m);
-        return [
-          m.name || '—', m.role || '—',
-          formatTime(m.arrival, timeFormat),
-          formatTime(m.departure, timeFormat),
-          m.breaks.length > 0 ? `${m.breaks.length} · ${bm}m` : '—',
-          net !== null ? formatDuration(net) : '—',
-        ];
-      }),
-      theme: 'grid',
-      headStyles: { fillColor: C.mid, textColor: C.white, fontStyle: 'bold', fontSize: 8, cellPadding: 3 },
-      bodyStyles: { fontSize: 8.5, cellPadding: 3, textColor: C.dark },
-      alternateRowStyles: { fillColor: C.light },
-      columnStyles: {
-        0: { cellWidth: 42, fontStyle: 'bold' },
-        2: { halign: 'center', font: 'courier' },
-        3: { halign: 'center', font: 'courier' },
-        4: { halign: 'center' },
-        5: { halign: 'center', font: 'courier', fontStyle: 'bold' },
-      },
-    });
-    y = lastTableY(doc, y) + 8;
-  }
-
-  // ─── Show timing (no +/- column) ───────────────────────────────────────────
   const segments = [...show.segments].sort((a, b) => a.order - b.order);
-  y = ensureSpace(doc, y, 24);
-  y = sectionLabel(doc, 'Show Timing', y);
-  autoTable(doc, {
-    startY: y,
-    margin: { left: MARGIN, right: MARGIN },
-    head: [['Segment', 'Start', 'End', 'Duration']],
-    body: segments.map(seg => [
-      seg.label,
-      formatTime(seg.actualStart, timeFormat),
-      seg.type === 'show_end' ? '—' : formatTime(seg.actualEnd, timeFormat),
-      seg.actualStart && seg.type !== 'show_end' ? formatDuration(getElapsedMs(seg, now)) : '—',
-    ]),
-    theme: 'grid',
-    headStyles: { fillColor: C.mid, textColor: C.white, fontStyle: 'bold', fontSize: 8, cellPadding: 3.5 },
-    bodyStyles: { fontSize: 8.5, cellPadding: 3.5, textColor: C.dark },
-    alternateRowStyles: { fillColor: C.light },
-    columnStyles: {
-      0: { cellWidth: 70, fontStyle: 'bold' },
-      1: { halign: 'center', font: 'courier' },
-      2: { halign: 'center', font: 'courier' },
-      3: { halign: 'center', font: 'courier' },
+
+  return {
+    showName: show.production || show.title,
+    night: reportNight(show),
+    dateLong: formatDateLong(show.date),
+    dateShort: format(new Date(show.date), 'd MMM yyyy').toUpperCase(),
+    generated: format(now, 'HH:mm · d MMM yyyy'),
+    access: {
+      arrival: formatTime(cArr, timeFormat),
+      departure: formatTime(cDep, timeFormat),
+      onSite: onSite !== null ? formatDuration(onSite) : '—',
     },
-  });
-  y = lastTableY(doc, y) + 8;
+    totals: {
+      inShow: formatDuration(getShowTimeWindowMs(show, now)),
+      notInShow: formatDuration(getNonShowTimeMs(show, now)),
+    },
+    staff: show.staff.map(m => {
+      const net = staffWorkedMs(m);
+      return {
+        name: m.name || '—',
+        role: m.role || '—',
+        in: formatTime(m.arrival, timeFormat),
+        out: formatTime(m.departure, timeFormat),
+        breaks: m.breaks.length > 0 ? `${m.breaks.length} · ${staffBreakMinutes(m)}m` : '—',
+        net: net !== null ? formatDuration(net) : '—',
+      };
+    }),
+    timing: segments.map(seg => ({
+      segment: seg.label,
+      start: formatTime(seg.actualStart, timeFormat),
+      end: seg.type === 'show_end' ? '—' : formatTime(seg.actualEnd, timeFormat),
+      duration: seg.actualStart && seg.type !== 'show_end' ? formatDuration(getElapsedMs(seg, now)) : '—',
+      kind: timingKind(seg.type),
+    })),
+    techComments: show.techNotes?.trim() || '—',
+    clientComments: show.clientComments?.trim() || '—',
+    signature: {
+      name: show.clientSignatureName || '',
+      date: formatDateShort(show.date),
+      image: show.clientSignature,
+    },
+  };
+}
 
-  // ─── Totals: in-show vs not-in-show ────────────────────────────────────────
-  y = ensureSpace(doc, y, 24);
-  const showMs = getShowTimeWindowMs(show, now);
-  const nonShowMs = getNonShowTimeMs(show, now);
-  statCard(doc, MARGIN, half, y, 'Time in show (doors to finish)', formatDuration(showMs), C.amber);
-  statCard(doc, MARGIN + half + 4, half, y, 'Time not in show', formatDuration(nonShowMs), C.slate);
-  y += 22;
-
-  // ─── Comments + signature ──────────────────────────────────────────────────
-  y = commentBox(doc, 'Tech Comments', show.techNotes, y);
-  y = commentBox(doc, 'Client Comments', show.clientComments, y);
-
-  // Signature
-  y = ensureSpace(doc, y, 34);
-  y = sectionLabel(doc, 'Client Signature', y) + 2;
-  if (show.clientSignature) {
-    try {
-      doc.addImage(show.clientSignature, 'PNG', MARGIN, y, 60, 22);
-    } catch { /* ignore bad image data */ }
-    y += 24;
-  } else {
-    doc.setDrawColor(...C.slate); doc.setLineWidth(0.4);
-    doc.line(MARGIN, y + 14, MARGIN + 80, y + 14);
-    y += 18;
-  }
-  doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.slate);
-  doc.text('Signed', MARGIN, y);
-  doc.text(`Date: ${formatDateShort(show.date)}`, MARGIN + 90, y);
-
-  footer(doc);
+export async function generatePDF(show: Show, timeFormat: TimeFormat): Promise<void> {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
+  registerReportFonts(doc);
+  await drawShowReport(doc, buildShowReport(show, timeFormat), { markInk, wordmarkInk, markWhite });
   const filename = `${(show.production || show.title).replace(/[^a-z0-9]/gi, '-')}-${show.date}.pdf`;
   doc.save(filename);
 }
@@ -299,7 +260,7 @@ function timingTable(doc: jsPDF, show: Show, timeFormat: TimeFormat, y: number, 
 
 function totalsRow(doc: jsPDF, show: Show, y: number, now: Date): number {
   const half = (W - MARGIN * 2 - 4) / 2;
-  statCard(doc, MARGIN, half, y, 'Time in show (doors to finish)', formatDuration(getShowTimeWindowMs(show, now)), C.amber);
+  statCard(doc, MARGIN, half, y, 'Time in show (performance)', formatDuration(getShowTimeWindowMs(show, now)), C.amber);
   statCard(doc, MARGIN + half + 4, half, y, 'Time not in show', formatDuration(getNonShowTimeMs(show, now)), C.slate);
   return y + 22;
 }

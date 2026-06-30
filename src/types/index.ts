@@ -163,6 +163,7 @@ export interface Show {
   clientDeparture: string | null;   // ISO timestamp
   clientComments: string;
   clientSignature: string | null;   // base64 PNG data URL
+  clientSignatureName: string;      // printed name of the signer
   createdAt: string;
   completedAt: string | null;
   // Run membership (optional — standalone shows omit these)
@@ -195,6 +196,7 @@ export function normalizeShow(raw: Partial<Show> & { id: string }): Show {
     clientDeparture: raw.clientDeparture ?? null,
     clientComments: raw.clientComments ?? '',
     clientSignature: raw.clientSignature ?? null,
+    clientSignatureName: raw.clientSignatureName ?? '',
     createdAt: raw.createdAt ?? new Date().toISOString(),
     completedAt: raw.completedAt ?? null,
     runId: raw.runId,
@@ -335,26 +337,29 @@ export function effectiveClientDeparture(show: Show): string | null {
 }
 
 // ── v2 billable-time accounting ───────────────────────────────────────────────
-// "Show time" = the window the audience/client is in for the performance:
-// doors open → show finish (doors counted as show time).
-// "Non-show time" = technical work outside that window: bump in/out,
-// rehearsal, plotting.
+// "In show" = pure performance time: first act/interval/curtain_call/custom
+//   start → show_end. Doors and house_open are pre-performance and excluded.
+// "Not in show" = everything else the crew works: doors, house_open, pre/post
+//   show, changeover, bump in/out, rehearsal, plotting.
 
-const NON_SHOW_TYPES = new Set<SegmentType>(['pre_show', 'performance_start', 'changeover', 'bump_in', 'bump_out', 'rehearsal', 'plotting', 'post_show']);
+const NON_SHOW_TYPES = new Set<SegmentType>([
+  'doors', 'house_open',
+  'pre_show', 'performance_start', 'changeover',
+  'bump_in', 'bump_out', 'rehearsal', 'plotting', 'post_show',
+]);
 
 /**
- * Total elapsed of the "in show" window. Spans from the earliest started
- * doors/house/show-core segment to the show-finish timestamp (or now if the
- * show hasn't finished). Falls back to summing show-core segments when no
- * doors segment exists.
+ * Total elapsed of the "in show" window — pure performance time.
+ * Spans from the first act/interval/curtain_call/custom actualStart to the
+ * show_end timestamp (or now). Changeover is subtracted for double-headers.
  */
 export function getShowTimeWindowMs(show: Show, now: Date): number {
   const segs = [...show.segments].sort((a, b) => a.order - b.order);
   const windowTypes = new Set<SegmentType>([
-    'doors', 'house_open', 'act', 'interval', 'curtain_call', 'custom',
+    'act', 'interval', 'curtain_call', 'custom',
   ]);
 
-  // Earliest actual start among in-window segments = window start.
+  // Earliest actual start among performance segments = window start.
   let startMs: number | null = null;
   for (const s of segs) {
     if (windowTypes.has(s.type) && s.actualStart) {
@@ -364,7 +369,7 @@ export function getShowTimeWindowMs(show: Show, now: Date): number {
   }
   if (startMs === null) return 0;
 
-  // Window end: show_end timestamp, else latest actualEnd, else now.
+  // Window end: show_end timestamp, else latest actualEnd among perf segs, else now.
   const showEnd = segs.find(s => s.type === 'show_end');
   let endMs: number;
   if (showEnd?.actualStart) {
@@ -381,8 +386,7 @@ export function getShowTimeWindowMs(show: Show, now: Date): number {
   }
   const windowMs = Math.max(0, endMs - startMs);
 
-  // For double-header shows subtract changeover time — it sits inside the
-  // window span but is not "in show" time.
+  // Subtract changeover time for double-header shows.
   const changeoverMs = segs
     .filter(s => s.type === 'changeover')
     .reduce((acc, s) => acc + getElapsedMs(s, now), 0);

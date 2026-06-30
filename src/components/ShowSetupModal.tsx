@@ -124,6 +124,7 @@ export default function ShowSetupModal() {
                     type="date"
                     value={date}
                     onChange={e => setDate(e.target.value)}
+                    style={{ colorScheme: 'dark' }}
                     className="w-full bg-show-surface border border-show-border rounded-lg px-3 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all text-sm"
                   />
                 </div>

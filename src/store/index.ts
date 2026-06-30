@@ -122,8 +122,8 @@ function reconcileSchedule(seg: Segment, edited: ScheduleEdit): Partial<Segment>
 }
 
 /** Fresh People-face defaults for a new show. */
-function defaultPeople(): Pick<Show, 'staff' | 'clientArrival' | 'clientDeparture' | 'clientComments' | 'clientSignature'> {
-  return { staff: [], clientArrival: null, clientDeparture: null, clientComments: '', clientSignature: null };
+function defaultPeople(): Pick<Show, 'staff' | 'clientArrival' | 'clientDeparture' | 'clientComments' | 'clientSignature' | 'clientSignatureName'> {
+  return { staff: [], clientArrival: null, clientDeparture: null, clientComments: '', clientSignature: null, clientSignatureName: '' };
 }
 
 interface ShowStore {
@@ -172,6 +172,7 @@ interface ShowStore {
   setClientTime: (showId: string, field: 'clientArrival' | 'clientDeparture', time: Date | null) => void;
   updateClientComments: (showId: string, comments: string) => void;
   setSignature: (showId: string, dataUrl: string | null) => void;
+  setSignatureName: (showId: string, name: string) => void;
 
   // Show-finish helper (v2 — added manually)
   addShowFinish: (showId: string) => void;
@@ -506,6 +507,13 @@ export const useShowStore = create<ShowStore>((set, get) => ({
   setSignature: (showId, dataUrl) => {
     set(s => ({
       shows: s.shows.map(sh => sh.id !== showId ? sh : { ...sh, clientSignature: dataUrl }),
+    }));
+    get().saveToStore();
+  },
+
+  setSignatureName: (showId, name) => {
+    set(s => ({
+      shows: s.shows.map(sh => sh.id !== showId ? sh : { ...sh, clientSignatureName: name }),
     }));
     get().saveToStore();
   },

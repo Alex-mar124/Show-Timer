@@ -5,6 +5,11 @@ node_modules/
 dist/
 src-tauri/target/
 
+# ── Scratch / temp build artefacts ─────────────────────────────────────────────
+tmp/
+.smoke*.mjs
+.genfonts.mjs
+
 # ── Environment & secrets ──────────────────────────────────────────────────────
 .env
 .env.*

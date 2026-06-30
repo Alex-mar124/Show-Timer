@@ -32,7 +32,7 @@ function Stat({ label, value, color, Icon }: { label: string; value: string; col
 }
 
 export default function ReportTab({ show, run, runShows }: Props) {
-  const { settings, updateTechNotes, updateClientComments, setSignature, addToast } = useShowStore();
+  const { settings, updateTechNotes, updateClientComments, setSignature, setSignatureName, addToast } = useShowStore();
   const now = useClock();
   const reportFormat = resolveReportFormat(settings);
 
@@ -87,7 +87,12 @@ export default function ReportTab({ show, run, runShows }: Props) {
       {/* ── Signature ──────────────────────────────────────────────────────── */}
       <section>
         <label className="block text-xs font-semibold text-slate-300 mb-2">Client Signature</label>
-        <SignaturePad value={show.clientSignature} onChange={v => setSignature(show.id, v)} />
+        <SignaturePad
+          value={show.clientSignature}
+          onChange={v => setSignature(show.id, v)}
+          name={show.clientSignatureName}
+          onNameChange={v => setSignatureName(show.id, v)}
+        />
       </section>
 
       {/* ── Actions ────────────────────────────────────────────────────────── */}
