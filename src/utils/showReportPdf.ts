@@ -105,7 +105,8 @@ function drawFooter(ctx: Ctx) {
 // compact running header used on continuation pages; returns y after it
 function runningHeader(ctx: Ctx): number {
   const { d, r, logos } = ctx, y = 60;
-  d.addImage(logos.markInk, 'PNG', MX, y - 14, 20, 20);
+  const rhH = 20;
+  d.addImage(logos.markInk, 'PNG', MX, y - 14, rhH * (256 / 247), rhH);
   font(d, 'serif', 'normal'); d.setFontSize(15); set(d, C.ink);
   d.text(r.showName, MX + 28, y - 4);
   font(d, 'mono', 'normal'); d.setFontSize(7); set(d, C.faint);
@@ -203,9 +204,13 @@ export async function drawShowReport(d: jsPDF, r: ShowReport, logos: LogoAssets)
   paintBase(d);
 
   // ---- brand header (page 1 only) ----------------------------------------
+  // Size both logos from their true pixel aspect ratios so neither stretches.
   let y = 64;
-  d.addImage(logos.markInk, 'PNG', MX, y - 12, 22, 22);
-  d.addImage(logos.wordmarkInk, 'PNG', MX + 30, y - 5, 92, 92 * (15 / 92));
+  const MARK_AR = 256 / 247, WORD_AR = 640 / 73;
+  const markH = 24, markW = markH * MARK_AR, markTop = y - 15;
+  d.addImage(logos.markInk, 'PNG', MX, markTop, markW, markH);
+  const wordW = 108, wordH = wordW / WORD_AR;
+  d.addImage(logos.wordmarkInk, 'PNG', MX + markW + 10, markTop + (markH - wordH) / 2, wordW, wordH);
   font(d, 'mono', 'bold'); d.setFontSize(8); set(d, C.purple);
   d.text('SHOW REPORT', RIGHT, y - 6, { align: 'right', charSpace: 1.4 });
   font(d, 'mono', 'normal'); d.setFontSize(7.5); set(d, C.faint);
@@ -215,22 +220,52 @@ export async function drawShowReport(d: jsPDF, r: ShowReport, logos: LogoAssets)
   // ---- hero (page 1 only) -------------------------------------------------
   const heroH = 132;
   fill(d, C.heroBg); d.roundedRect(MX, y, CW, heroH, 12, 12, 'F');
-  d.addImage(logos.markWhite, 'PNG', RIGHT - 150, y - 26, 160, 160);
-  fill(d, C.paper); d.rect(RIGHT + 6, y - 30, 40, heroH + 60, 'F'); d.rect(MX - 4, y - 30, CW + 12, 30, 'F');
+  // Faint K watermark bleeding off the top-right corner, clipped to the hero
+  // box and drawn at low opacity (matches the design's opacity:0.07).
+  d.saveGraphicsState();
+  d.rect(MX, y, CW, heroH); (d as any).clip(); (d as any).discardPath();
+  (d as any).setGState(new (d as any).GState({ opacity: 0.07 }));
+  const wmH = 150, wmW = wmH * MARK_AR;
+  d.addImage(logos.markWhite, 'PNG', RIGHT - wmW + 30, y - 22, wmW, wmH);
+  d.restoreGraphicsState();
   const hx = MX + 28, hy = y + 34;
   font(d, 'mono', 'bold'); d.setFontSize(7.5); set(d, C.heroLilac);
   d.text('SHOW REPORT', hx, hy, { charSpace: 2.4 });
-  font(d, 'serif', 'normal'); d.setFontSize(40); set(d, [246, 242, 251]);
-  d.text(r.showName, hx - 1, hy + 38);
-  const pillY = hy + 60; font(d, 'mono', 'bold'); d.setFontSize(7.5);
-  const pillTxt = r.night.toUpperCase(), pw = d.getTextWidth(pillTxt) + 16;
-  fill(d, C.purpleLt); d.roundedRect(hx, pillY - 9, pw, 15, 7.5, 7.5, 'F');
-  set(d, C.ink); d.text(pillTxt, hx + 8, pillY + 1, { charSpace: 0.8 });
-  font(d, 'sans', 'normal'); d.setFontSize(10); set(d, [200, 189, 216]);
-  d.text(r.dateLong, hx + pw + 10, pillY + 1);
+  // Totals geometry up-front so the title can scale to clear them.
   const t2x = RIGHT - 28, t1x = t2x - 150;
+  font(d, 'mono', 'bold'); d.setFontSize(23);
+  const totalsLeft = t1x - Math.max(d.getTextWidth(r.totals.inShow), 64);
+
+  // Title — shrink the serif until a long show name clears the totals column,
+  // then ellipsize if it still overflows at the minimum size (never clashes).
+  const titleX = hx - 1, titleMaxW = totalsLeft - titleX - 22;
+  let titleSize = 40;
+  font(d, 'serif', 'normal'); d.setFontSize(titleSize);
+  while (titleSize > 12 && d.getTextWidth(r.showName) > titleMaxW) { titleSize -= 1; d.setFontSize(titleSize); }
+  let titleStr = r.showName;
+  if (d.getTextWidth(titleStr) > titleMaxW) {
+    while (titleStr.length > 1 && d.getTextWidth(titleStr + '…') > titleMaxW) titleStr = titleStr.slice(0, -1);
+    titleStr = titleStr.replace(/\s+$/, '') + '…';
+  }
+  set(d, [246, 242, 251]);
+  d.text(titleStr, titleX, hy + 38);
+
+  // Night pill + date — extra gap below the title so it doesn't feel cramped.
+  // Pill text is centred both axes: width includes the charSpace expansion so
+  // horizontal padding is even, and baseline:'middle' centres it vertically.
+  const pillY = hy + 68; font(d, 'mono', 'bold'); d.setFontSize(7.5);
+  const pillTxt = r.night.toUpperCase(), pillGap = 0.8;
+  const pillTxtW = d.getTextWidth(pillTxt) + pillGap * Math.max(0, pillTxt.length - 1);
+  const pillH = 17, pillTop = pillY - 11, pillMid = pillTop + pillH / 2, pw = pillTxtW + 24;
+  fill(d, C.purpleLt); d.roundedRect(hx, pillTop, pw, pillH, pillH / 2, pillH / 2, 'F');
+  set(d, C.ink);
+  d.text(pillTxt, hx + pw / 2, pillMid, { charSpace: pillGap, align: 'center', baseline: 'middle' });
+  font(d, 'sans', 'normal'); d.setFontSize(10); set(d, [200, 189, 216]);
+  d.text(r.dateLong, hx + pw + 12, pillMid, { baseline: 'middle' });
+
+  // Totals
   drawTotal(d, t1x, y + 30, 'TIME IN SHOW', r.totals.inShow, 'PERFORMANCE', [246, 242, 251]);
-  drawTotal(d, t2x, y + 30, 'NOT IN SHOW', r.totals.notInShow, 'BUMP / TURNAROUND', C.heroLilac);
+  drawTotal(d, t2x, y + 30, 'NOT IN SHOW', r.totals.notInShow, 'PRE / POST SHOW', C.heroLilac);
   stroke(d, [70, 56, 96]); d.setLineWidth(0.6); d.line(t1x + 16, y + 26, t1x + 16, y + heroH - 26);
   ctx.y = y + heroH + 30;
 
