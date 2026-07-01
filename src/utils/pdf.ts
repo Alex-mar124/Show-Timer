@@ -2,7 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import type { Show, Run, TimeFormat, SegmentType } from '../types';
-import { getElapsedMs, getShowTimeWindowMs, getNonShowTimeMs, staffBreakMinutes, staffWorkedMs, effectiveClientArrival, effectiveClientDeparture } from '../types';
+import { getElapsedMs, getShowTimeMs, getNonShowTimeMs, staffBreakMinutes, staffWorkedMs, effectiveClientArrival, effectiveClientDeparture } from '../types';
 import { formatTime, formatDuration, formatDateLong, formatDateShort } from './time';
 import { drawShowReport, type ShowReport } from './showReportPdf';
 import { markInk, wordmarkInk, markWhite } from './reportLogos';
@@ -179,7 +179,7 @@ export function buildShowReport(show: Show, timeFormat: TimeFormat): ShowReport 
       onSite: onSite !== null ? formatDuration(onSite) : '—',
     },
     totals: {
-      inShow: formatDuration(getShowTimeWindowMs(show, now)),
+      inShow: formatDuration(getShowTimeMs(show, now)),
       notInShow: formatDuration(getNonShowTimeMs(show, now)),
     },
     staff: show.staff.map(m => {
@@ -260,7 +260,7 @@ function timingTable(doc: jsPDF, show: Show, timeFormat: TimeFormat, y: number, 
 
 function totalsRow(doc: jsPDF, show: Show, y: number, now: Date): number {
   const half = (W - MARGIN * 2 - 4) / 2;
-  statCard(doc, MARGIN, half, y, 'Time in show (performance)', formatDuration(getShowTimeWindowMs(show, now)), C.amber);
+  statCard(doc, MARGIN, half, y, 'Time in show (performance)', formatDuration(getShowTimeMs(show, now)), C.amber);
   statCard(doc, MARGIN + half + 4, half, y, 'Time not in show', formatDuration(getNonShowTimeMs(show, now)), C.slate);
   return y + 22;
 }
@@ -385,7 +385,7 @@ function runSummaryBody(doc: jsPDF, run: Run, shows: Show[], timeFormat: TimeFor
   let totalNonShow = 0;
 
   const rows = shows.map((s, i) => {
-    const showMs = getShowTimeWindowMs(s, now);
+    const showMs = getShowTimeMs(s, now);
     totalShow += showMs;
     totalNonShow += getNonShowTimeMs(s, now);
     const sw = staffWindow(s);

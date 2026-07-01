@@ -337,8 +337,11 @@ export function effectiveClientDeparture(show: Show): string | null {
 }
 
 // ── v2 billable-time accounting ───────────────────────────────────────────────
-// "In show" = pure performance time: first act/interval/curtain_call/custom
-//   start → show_end. Doors and house_open are pre-performance and excluded.
+// "In show" = the summed run time of the performance segments themselves —
+//   act / interval / curtain_call / custom (see getShowTimeMs). This is a SUM of
+//   each segment's elapsed time, not a first-to-last span, so removing a segment
+//   (e.g. the interval) or a late Show-Finish stamp never inflates it, and
+//   changeover is naturally excluded (it isn't a performance type).
 // "Not in show" = everything else the crew works: doors, house_open, pre/post
 //   show, changeover, bump in/out, rehearsal, plotting.
 
@@ -347,52 +350,6 @@ const NON_SHOW_TYPES = new Set<SegmentType>([
   'pre_show', 'performance_start', 'changeover',
   'bump_in', 'bump_out', 'rehearsal', 'plotting', 'post_show',
 ]);
-
-/**
- * Total elapsed of the "in show" window — pure performance time.
- * Spans from the first act/interval/curtain_call/custom actualStart to the
- * show_end timestamp (or now). Changeover is subtracted for double-headers.
- */
-export function getShowTimeWindowMs(show: Show, now: Date): number {
-  const segs = [...show.segments].sort((a, b) => a.order - b.order);
-  const windowTypes = new Set<SegmentType>([
-    'act', 'interval', 'curtain_call', 'custom',
-  ]);
-
-  // Earliest actual start among performance segments = window start.
-  let startMs: number | null = null;
-  for (const s of segs) {
-    if (windowTypes.has(s.type) && s.actualStart) {
-      const t = new Date(s.actualStart).getTime();
-      if (startMs === null || t < startMs) startMs = t;
-    }
-  }
-  if (startMs === null) return 0;
-
-  // Window end: show_end timestamp, else latest actualEnd among perf segs, else now.
-  const showEnd = segs.find(s => s.type === 'show_end');
-  let endMs: number;
-  if (showEnd?.actualStart) {
-    endMs = new Date(showEnd.actualStart).getTime();
-  } else {
-    let latest = startMs;
-    for (const s of segs) {
-      if (windowTypes.has(s.type)) {
-        const e = s.actualEnd ? new Date(s.actualEnd).getTime() : (s.actualStart ? now.getTime() : 0);
-        if (e > latest) latest = e;
-      }
-    }
-    endMs = latest;
-  }
-  const windowMs = Math.max(0, endMs - startMs);
-
-  // Subtract changeover time for double-header shows.
-  const changeoverMs = segs
-    .filter(s => s.type === 'changeover')
-    .reduce((acc, s) => acc + getElapsedMs(s, now), 0);
-
-  return Math.max(0, windowMs - changeoverMs);
-}
 
 /** Total elapsed of non-show (technical) segments: bump in/out, rehearsal, plotting. */
 export function getNonShowTimeMs(show: Show, now: Date): number {

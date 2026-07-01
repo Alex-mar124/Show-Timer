@@ -2,7 +2,7 @@ import { FileDown, FileText, Files, Clock, Users, DoorOpen, Share2, Package, Pri
 import { useShowStore } from '../store';
 import { useClock } from '../hooks/useClock';
 import type { Show, Run } from '../types';
-import { resolveReportFormat, getShowTimeWindowMs, getNonShowTimeMs, effectiveClientArrival, effectiveClientDeparture } from '../types';
+import { resolveReportFormat, getShowTimeMs, getNonShowTimeMs, effectiveClientArrival, effectiveClientDeparture } from '../types';
 import { formatDuration, formatTime } from '../utils/time';
 import { generatePDF, generatePrintablePDF, generateRunReportPDF, generateRunPrintablePDF, generateAllRunReports } from '../utils/pdf';
 import { exportShow, exportRun } from '../utils/exchange';
@@ -36,7 +36,7 @@ export default function ReportTab({ show, run, runShows }: Props) {
   const now = useClock();
   const reportFormat = resolveReportFormat(settings);
 
-  const showMs = getShowTimeWindowMs(show, now);
+  const showMs = getShowTimeMs(show, now);
   const nonShowMs = getNonShowTimeMs(show, now);
   const cArr = effectiveClientArrival(show);
   const cDep = effectiveClientDeparture(show);
